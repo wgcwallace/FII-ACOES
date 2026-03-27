@@ -815,9 +815,12 @@ select option { background:var(--surface2); }
         <div class="form-section" style="max-width:100%">
           <div class="section-header">
             <div class="form-title" id="form-cart-title">📋 Minha Carteira FII</div>
-            <button class="btn" id="btn-buscar-div" onclick="buscarDividendos()" style="font-size:12px;padding:5px 12px;color:var(--gold);border-color:var(--gold)">
-              <span id="div-icon">💰</span> <span id="div-label-btn">Buscar dividendos</span>
-            </button>
+            <div style="display:flex;gap:8px">
+              <button class="btn" id="btn-buscar-div" onclick="buscarDividendos()" style="font-size:12px;padding:5px 12px;color:var(--gold);border-color:var(--gold)">
+                <span id="div-icon">💰</span> <span id="div-label-btn">Buscar dividendos</span>
+              </button>
+              <button class="btn" onclick="resetCarteira()" style="font-size:12px;padding:5px 12px;color:var(--red);border-color:var(--red)">🗑️ Limpar carteira</button>
+            </div>
           </div>
           <div class="table-wrap">
             <table>
@@ -1920,7 +1923,7 @@ function handleFileImport(file) {
       document.getElementById('preview-list').innerHTML = importData.map(f =>
         `<div class="preview-row">
           <span style="font-family:'DM Mono';color:var(--accent)">${f.ticker}</span>
-          <span style="color:var(--text2)">${f.cotas} cotas${f.pm > 0 ? ' · R$ ' + fmt(f.pm) : ' · (sem PM)'}</span>
+          <span style="color:var(--text2)">${f.cotas} cotas · PM: R$ ${fmt(f.pm)} · Total: R$ ${fmt(f.pm * f.cotas)}</span>
         </div>`).join('');
 
     } catch(err) {
@@ -2285,6 +2288,22 @@ function processChat(text) {
   }
 
   return `Não entendi sua mensagem. Tente:\n• "adicionar ${currentAsset==='fii'?'HGLG11':'VALE3'}"\n• "ver carteira"\n• "meu patrimônio"\n• "melhor DY"`;
+}
+
+// ═══════════════════════════════════════════════
+// RESET CARTEIRA
+// ═══════════════════════════════════════════════
+function resetCarteira() {
+  const tipo = currentAsset === 'fii' ? 'FIIs' : 'Ações';
+  const count = getAtivos().length;
+  if (!count) { notify('Carteira já está vazia.', true); return; }
+  if (!confirm(`Apagar todos os ${count} ativos da carteira de ${tipo}?\n\nOs proventos registrados NÃO serão removidos.`)) return;
+  if (currentAsset === 'fii') fiis = [];
+  else acoes = [];
+  save();
+  renderCarteira();
+  renderDashboard();
+  notify(`✅ Carteira de ${tipo} limpa.`);
 }
 
 // ═══════════════════════════════════════════════
