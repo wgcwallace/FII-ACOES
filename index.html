@@ -1330,31 +1330,53 @@ function save() {
 // ADD / REMOVE ATIVO
 // ═══════════════════════════════════════════════
 function addAtivo(data) {
-  const ticker = (data?.ticker || document.getElementById('f-ticker').value).toUpperCase().trim();
-  const setor = data?.setor || document.getElementById('f-setor').value;
-  const cotas = parseFloat(data?.cotas || document.getElementById('f-cotas').value);
-  const pm = parseFloat(data?.pm || document.getElementById('f-preco').value);
-  const atual = parseFloat(data?.atual || pm);
+  const ticker   = (data?.ticker || document.getElementById('f-ticker').value).toUpperCase().trim();
+  const setor    = data?.setor    || document.getElementById('f-setor').value;
+  const novasCotas = parseFloat(data?.cotas || document.getElementById('f-cotas').value);
+  const novoPM   = parseFloat(data?.pm    || document.getElementById('f-preco').value);
+  const novoAtual = parseFloat(data?.atual || novoPM);
   const dividendo = parseFloat(data?.dividendo || document.getElementById('f-dividendo').value || 0);
 
-  if (!ticker || !cotas || !pm) { notify('Preencha ticker, cotas e preço médio.', true); return false; }
+  if (!ticker || !novasCotas || !novoPM) { notify('Preencha ticker, cotas e preço médio.', true); return false; }
 
   const lista = currentAsset === 'fii' ? fiis : acoes;
   const autoSetor = getSetorByTicker(ticker) || setor || getSetores()[0];
-  const entry = { ticker, setor: autoSetor, cotas, pm, atual, dividendo };
   const idx = lista.findIndex(f => f.ticker === ticker);
-  if (idx >= 0) lista[idx] = entry;
-  else lista.push(entry);
+
+  if (idx >= 0) {
+    // ── Ativo já existe: recalcula PM ponderado e soma cotas ──
+    const existente = lista[idx];
+    const cotasAntigas = existente.cotas;
+    const pmAntigo     = existente.pm;
+
+    const totalCotas = cotasAntigas + novasCotas;
+    // PM médio ponderado: (cotas_antigas × pm_antigo + novas_cotas × novo_pm) / total_cotas
+    const pmNovo = (cotasAntigas * pmAntigo + novasCotas * novoPM) / totalCotas;
+
+    lista[idx] = {
+      ...existente,
+      cotas:    totalCotas,
+      pm:       parseFloat(pmNovo.toFixed(4)),
+      atual:    novoAtual || existente.atual || novoPM,
+      dividendo: dividendo || existente.dividendo || 0,
+      setor:    autoSetor,
+    };
+    notify(`${ticker} atualizado! ${cotasAntigas} + ${novasCotas} = ${totalCotas} cotas · PM R$ ${fmt(pmNovo)}`);
+  } else {
+    // ── Ativo novo: adiciona normalmente ──
+    lista.push({ ticker, setor: autoSetor, cotas: novasCotas, pm: novoPM, atual: novoAtual, dividendo });
+    notify(`${ticker} adicionado à carteira!`);
+  }
 
   if (!data) {
-    document.getElementById('f-ticker').value = '';
-    document.getElementById('f-cotas').value = '';
-    document.getElementById('f-preco').value = '';
+    document.getElementById('f-ticker').value   = '';
+    document.getElementById('f-cotas').value    = '';
+    document.getElementById('f-preco').value    = '';
     document.getElementById('f-dividendo').value = '';
   }
   save();
   renderCarteira();
-  notify(`${ticker} adicionado à carteira!`);
+  renderDashboard();
   return true;
 }
 
