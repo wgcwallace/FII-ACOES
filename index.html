@@ -653,7 +653,7 @@ select option { background:var(--surface2); }
                 <table id="dash-table">
                   <thead><tr id="dash-thead-row">
                     <th>Ticker</th><th>Setor</th><th>Cotas</th>
-                    <th>Vlr. Investido</th><th>Vlr. Atual</th>
+                    <th>P. Médio</th><th>Atual</th>
                     <th id="th-div">Dividendo</th><th>DY</th><th>Resultado</th>
                   </tr></thead>
                   <tbody id="dash-tbody">
@@ -697,7 +697,7 @@ select option { background:var(--surface2); }
                 <table>
                   <thead><tr id="dash-thead-row2">
                     <th>Ticker</th><th>Setor</th><th>Cotas</th>
-                    <th>Vlr. Investido</th><th>Vlr. Atual</th>
+                    <th>P. Médio</th><th>Atual</th>
                     <th>Div/Cota</th><th>DY</th><th>Resultado</th>
                   </tr></thead>
                   <tbody id="dash-tbody-2">
@@ -823,7 +823,7 @@ select option { background:var(--surface2); }
             <table>
               <thead><tr>
                 <th>Ticker</th><th>Setor</th><th>Cotas</th>
-                <th>Vlr. Investido</th><th>Vlr. Atual</th>
+                <th>P.M.</th><th>Atual</th>
                 <th id="th-cart-div">Dividend.</th>
                 <th>Renda/mês</th><th>DY</th><th>Ação</th>
               </tr></thead>
@@ -977,7 +977,7 @@ Use os atalhos abaixo ou digite livremente!</div>
       <button onclick="closeModal()" style="background:transparent;border:none;color:var(--text3);cursor:pointer;font-size:20px">×</button>
     </div>
     <div id="edit-summary" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:16px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
-      <div><div style="font-size:9px;color:var(--text3);font-family:'DM Mono',monospace;text-transform:uppercase;margin-bottom:2px">Investido / Atual</div><div id="edit-sum-valor" style="font-family:'DM Mono',monospace;font-size:13px">—</div></div>
+      <div><div style="font-size:9px;color:var(--text3);font-family:'DM Mono',monospace;text-transform:uppercase;margin-bottom:2px">Valor Atual</div><div id="edit-sum-valor" style="font-family:'DM Mono',monospace;font-size:13px">—</div></div>
       <div><div style="font-size:9px;color:var(--text3);font-family:'DM Mono',monospace;text-transform:uppercase;margin-bottom:2px">Resultado</div><div id="edit-sum-res" style="font-family:'DM Mono',monospace;font-size:13px">—</div></div>
       <div><div style="font-size:9px;color:var(--text3);font-family:'DM Mono',monospace;text-transform:uppercase;margin-bottom:2px">DY Mensal</div><div id="edit-sum-dy" style="font-family:'DM Mono',monospace;font-size:13px">—</div></div>
     </div>
@@ -1409,8 +1409,7 @@ function updateEditSummary() {
   const res = (atual - pm) * cotas;
   const pctRes = pm > 0 ? ((atual - pm) / pm * 100) : 0;
   const dy = atual > 0 ? (div / atual * 100) : 0;
-  const vlrInvestido = pm * cotas;
-  document.getElementById('edit-sum-valor').textContent = 'R$ ' + fmt(vlrInvestido) + ' investido · R$ ' + fmt(valor) + ' atual';
+  document.getElementById('edit-sum-valor').textContent = 'R$ ' + fmt(valor);
   const resEl = document.getElementById('edit-sum-res');
   const sinal = res >= 0 ? '+' : '';
   resEl.textContent = sinal + 'R$ ' + fmt(res) + ' (' + sinal + pct(pctRes) + ')';
@@ -1550,8 +1549,8 @@ function renderDashboard() {
       <td><strong style="color:${accent};font-family:'DM Mono'">${f.ticker}</strong></td>
       <td><span class="setor-pill setor-${setorKey}">${f.setor||'—'}</span></td>
       <td>${f.cotas}</td>
-      <td>R$ ${fmt(f.pm * f.cotas)}</td>
-      <td>R$ ${fmt((f.atual||f.pm) * f.cotas)}</td>
+      <td>R$ ${fmt(f.pm)}</td>
+      <td>R$ ${fmt(f.atual||f.pm)}</td>
       <td style="color:var(--gold)">R$ ${fmt(f.dividendo||0)}</td>
       <td><span class="badge badge-gold">${pct(dy)}</span></td>
       <td><span class="badge ${cls}">${sinal}R$ ${fmt(res)}</span></td>
@@ -1691,8 +1690,8 @@ function renderCarteira() {
       <td><strong style="color:${accent};font-family:'DM Mono'">${f.ticker}</strong></td>
       <td><span class="setor-pill setor-${setorKey}">${f.setor||'—'}</span></td>
       <td>${f.cotas}</td>
-      <td>R$ ${fmt(f.pm * f.cotas)}</td>
-      <td>R$ ${fmt((f.atual||f.pm) * f.cotas)}</td>
+      <td>R$ ${fmt(f.pm)}</td>
+      <td>R$ ${fmt(f.atual||f.pm)}</td>
       <td style="color:var(--gold)">R$ ${fmt(f.dividendo||0)}</td>
       <td style="color:${accent}">R$ ${fmt(rendaMensal)}</td>
       <td><span class="badge badge-gold">${pct(f.dy)}</span></td>
