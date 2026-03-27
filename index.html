@@ -652,7 +652,7 @@ select option { background:var(--surface2); }
               <div class="table-wrap">
                 <table id="dash-table">
                   <thead><tr id="dash-thead-row">
-                    <th>Ticker</th><th>Setor</th><th>Cotas</th>
+                    <th>Ticker</th><th>Setor</th><th>Vlr. Investido</th><th>Cotas</th>
                     <th>P. Médio</th><th>Atual</th>
                     <th id="th-div">Dividendo</th><th>DY</th><th>Resultado</th>
                   </tr></thead>
@@ -696,7 +696,7 @@ select option { background:var(--surface2); }
               <div class="table-wrap">
                 <table>
                   <thead><tr id="dash-thead-row2">
-                    <th>Ticker</th><th>Setor</th><th>Cotas</th>
+                    <th>Ticker</th><th>Setor</th><th>Vlr. Investido</th><th>Cotas</th>
                     <th>P. Médio</th><th>Atual</th>
                     <th>Div/Cota</th><th>DY</th><th>Resultado</th>
                   </tr></thead>
@@ -822,7 +822,7 @@ select option { background:var(--surface2); }
           <div class="table-wrap">
             <table>
               <thead><tr>
-                <th>Ticker</th><th>Setor</th><th>Cotas</th>
+                <th>Ticker</th><th>Setor</th><th>Vlr. Investido</th><th>Cotas</th>
                 <th>P.M.</th><th>Atual</th>
                 <th id="th-cart-div">Dividend.</th>
                 <th>Renda/mês</th><th>DY</th><th>Ação</th>
@@ -1548,6 +1548,7 @@ function renderDashboard() {
     return `<tr>
       <td><strong style="color:${accent};font-family:'DM Mono'">${f.ticker}</strong></td>
       <td><span class="setor-pill setor-${setorKey}">${f.setor||'—'}</span></td>
+      <td>R$ ${fmt((f.atual||f.pm)*f.cotas)}</td>
       <td>${f.cotas}</td>
       <td>R$ ${fmt(f.pm)}</td>
       <td>R$ ${fmt(f.atual||f.pm)}</td>
@@ -1556,7 +1557,7 @@ function renderDashboard() {
       <td><span class="badge ${cls}">${sinal}R$ ${fmt(res)}</span></td>
     </tr>`;
   };
-  const emptyRow = '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:28px">Nenhum ativo cadastrado.</td></tr>';
+  const emptyRow = '<tr><td colspan="9" style="text-align:center;color:var(--text3);padding:28px">Nenhum ativo cadastrado.</td></tr>';
   document.getElementById('dash-tbody').innerHTML = lista.length ? lista.map(makeRow).join('') : emptyRow;
   document.getElementById('dash-tbody-2').innerHTML = lista.length ? lista.map(makeRow).join('') : emptyRow;
 
@@ -1689,6 +1690,7 @@ function renderCarteira() {
     return `<tr>
       <td><strong style="color:${accent};font-family:'DM Mono'">${f.ticker}</strong></td>
       <td><span class="setor-pill setor-${setorKey}">${f.setor||'—'}</span></td>
+      <td>R$ ${fmt((f.atual||f.pm)*f.cotas)}</td>
       <td>${f.cotas}</td>
       <td>R$ ${fmt(f.pm)}</td>
       <td>R$ ${fmt(f.atual||f.pm)}</td>
