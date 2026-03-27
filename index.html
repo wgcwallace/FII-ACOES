@@ -1843,8 +1843,16 @@ function handleFileImport(file) {
           const tickerM = produto.match(/^([A-Z]{4}[0-9]{1,2}B?)/i);
           if (!tickerM) return;
           const ticker = tickerM[1].toUpperCase();
-          const qtd    = parseFloat(String(row[kQtd]||'').replace(/\./g,'').replace(',','.')) || 0;
-          const preco  = parseFloat(String(row[kPreco]||'').replace(/\./g,'').replace(',','.')) || 0;
+          // Quantidade: inteiro, sem separador decimal — remove pontos de milhar
+          const qtdRaw = String(row[kQtd]||'').trim().replace(/[^\d]/g,'');
+          const qtd    = parseFloat(qtdRaw) || 0;
+          // Preço: float com ponto decimal (ex: 78.3 ou 78,30) — NÃO remove ponto
+          const precoStr = String(row[kPreco]||'').trim().replace(/[^\d,\.]/g,'');
+          // Se tiver vírgula E ponto, vírgula é decimal (ex: 1.234,56) → remove ponto, troca vírgula
+          // Se tiver só ponto, é decimal inglês (ex: 78.30) → usa direto
+          const preco = precoStr.includes(',')
+            ? parseFloat(precoStr.replace(/\./g,'').replace(',','.'))
+            : parseFloat(precoStr);
           if (qtd <= 0) return;
 
           if (!posicao[ticker]) posicao[ticker] = {cotas: 0, custo: 0};
