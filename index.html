@@ -1843,16 +1843,17 @@ function handleFileImport(file) {
           const tickerM = produto.match(/^([A-Z]{4}[0-9]{1,2}B?)/i);
           if (!tickerM) return;
           const ticker = tickerM[1].toUpperCase();
-          // Quantidade: inteiro, sem separador decimal — remove pontos de milhar
-          const qtdRaw = String(row[kQtd]||'').trim().replace(/[^\d]/g,'');
-          const qtd    = parseFloat(qtdRaw) || 0;
-          // Preço: float com ponto decimal (ex: 78.3 ou 78,30) — NÃO remove ponto
-          const precoStr = String(row[kPreco]||'').trim().replace(/[^\d,\.]/g,'');
-          // Se tiver vírgula E ponto, vírgula é decimal (ex: 1.234,56) → remove ponto, troca vírgula
-          // Se tiver só ponto, é decimal inglês (ex: 78.30) → usa direto
-          const preco = precoStr.includes(',')
-            ? parseFloat(precoStr.replace(/\./g,'').replace(',','.'))
-            : parseFloat(precoStr);
+          // Se o SheetJS já entregou número, usa direto — evita replace errado no ponto decimal
+          const qtd   = typeof row[kQtd]   === 'number' ? row[kQtd]
+                        : parseFloat(String(row[kQtd]||'').replace(/\./g,'').replace(',','.')) || 0;
+          const preco = typeof row[kPreco] === 'number' ? row[kPreco]
+                        : (() => {
+                            const s = String(row[kPreco]||'').trim();
+                            // Formato BR com milhar: 1.234,56
+                            if (s.includes(',')) return parseFloat(s.replace(/\./g,'').replace(',','.')) || 0;
+                            // Formato EN: 78.30 — usa direto
+                            return parseFloat(s) || 0;
+                          })();
           if (qtd <= 0) return;
 
           if (!posicao[ticker]) posicao[ticker] = {cotas: 0, custo: 0};
