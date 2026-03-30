@@ -2038,12 +2038,13 @@ async function buscarDividendos() {
   if (!token) { openTokenModal(); return; }
   const lista = getAtivos();
   if (!lista.length) { notify('Nenhum ativo cadastrado.', true); return; }
-  const btnDiv = document.getElementById('btn-buscar-div');
-  const labelBtn = document.getElementById('div-label-btn');
-  const iconDiv = document.getElementById('div-icon');
-  if (btnDiv) btnDiv.disabled = true;
-  if (iconDiv) iconDiv.classList.add('spinning');
-  if (labelBtn) labelBtn.textContent = 'Buscando...';
+  // Desabilita ambos os botões (carteira + proventos)
+  const btns   = ['btn-buscar-div','btn-buscar-div-prov'].map(id => document.getElementById(id));
+  const icons  = ['div-icon','div-icon-prov'].map(id => document.getElementById(id));
+  const labels = ['div-label-btn','div-label-prov'].map(id => document.getElementById(id));
+  btns.forEach(b => { if (b) b.disabled = true; });
+  icons.forEach(ic => { if (ic) ic.classList.add('spinning'); });
+  labels.forEach(lb => { if (lb) lb.textContent = 'Buscando...'; });
   let atualizados = 0, semDividendo = [];
   const proventos = getProventos();
   const hoje = new Date().toISOString().slice(0,7);
@@ -2055,26 +2056,46 @@ async function buscarDividendos() {
       const res = d.results?.[0];
       if (!res) { semDividendo.push(f.ticker); return; }
       if (res.regularMarketPrice) f.atual = res.regularMarketPrice;
-      const divs = res.dividendsData?.cashDividends;
-      if (divs?.length) {
-        const last = divs[0];
-        const val = parseFloat(last.rate || last.value || 0);
-        if (val > 0) {
-          f.dividendo = val;
-          const mesDiv = (last.paymentDate || last.date_payment || hoje).slice(0,7);
-          const jaExiste = proventos.some(d=>d.ticker===f.ticker && d.data?.startsWith(mesDiv));
-          if (!jaExiste && f.cotas > 0) {
-            proventos.push({ticker:f.ticker,data:last.paymentDate||last.date_payment||hoje,valor:val,cotas:f.cotas,total:parseFloat((val*f.cotas).toFixed(2))});
-          }
+      // Tenta múltiplos campos que a Brapi usa para FIIs e Ações
+      const divs = res.dividendsData?.cashDividends || res.dividendsData?.dividends || [];
+      const lastDiv = divs.length ? divs[0] : null;
+      // Para FIIs: campo "rate" ou "value"; para Ações: "rate" ou "amount"
+      const val = lastDiv
+        ? parseFloat(lastDiv.rate ?? lastDiv.value ?? lastDiv.amount ?? 0) || 0
+        : 0;
+
+      if (val > 0) {
+        f.dividendo = val;
+        const dataDiv = lastDiv?.paymentDate || lastDiv?.date_payment || lastDiv?.approvedOn || hoje;
+        const mesDiv = String(dataDiv).slice(0,7);
+        const jaExiste = proventos.some(d => d.ticker === f.ticker && d.data?.startsWith(mesDiv));
+        if (!jaExiste && f.cotas > 0) {
+          proventos.push({
+            ticker: f.ticker,
+            data: String(dataDiv).slice(0,10),
+            valor: val,
+            cotas: f.cotas,
+            total: parseFloat((val * f.cotas).toFixed(2))
+          });
+        }
+        atualizados++;
+      } else {
+        // Tenta pegar o dividendo do campo de resumo (earningsPerShare para FIIs de papel)
+        const dyField = res.earningsPerShare || res.dividendYield || 0;
+        if (dyField > 0 && dyField < 50) { // sanity check: DY por cota < R$50
+          f.dividendo = parseFloat(dyField.toFixed(4));
           atualizados++;
-        } else semDividendo.push(f.ticker);
-      } else semDividendo.push(f.ticker);
+        } else {
+          semDividendo.push(f.ticker);
+        }
+      }
     } catch(e) { semDividendo.push(f.ticker); }
   }));
 
-  if (btnDiv) btnDiv.disabled = false;
-  if (iconDiv) iconDiv.classList.remove('spinning');
-  if (labelBtn) labelBtn.textContent = currentAsset==='fii' ? 'Buscar dividendos' : 'Buscar proventos';
+  btns.forEach(b => { if (b) b.disabled = false; });
+  icons.forEach(ic => { if (ic) ic.classList.remove('spinning'); });
+  const labelFinal = currentAsset === 'fii' ? 'Buscar dividendos' : 'Buscar proventos';
+  labels.forEach(lb => { if (lb) lb.textContent = labelFinal; });
   save();
   renderProventos();
   renderDashboard();
