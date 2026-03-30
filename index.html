@@ -819,6 +819,7 @@ select option { background:var(--surface2); }
               <button class="btn" id="btn-buscar-div" onclick="buscarDividendos()" style="font-size:12px;padding:5px 12px;color:var(--gold);border-color:var(--gold)">
                 <span id="div-icon">💰</span> <span id="div-label-btn">Buscar dividendos</span>
               </button>
+              <button class="btn" onclick="diagnosticoDiv()" style="font-size:12px;padding:5px 10px;color:var(--acoes);border-color:var(--acoes)" title="Testar retorno da Brapi para o primeiro FII">🔍 Debug</button>
               <button class="btn" onclick="resetCarteira()" style="font-size:12px;padding:5px 12px;color:var(--red);border-color:var(--red)">🗑️ Limpar carteira</button>
             </div>
           </div>
@@ -2331,6 +2332,43 @@ function processChat(text) {
   }
 
   return `Não entendi sua mensagem. Tente:\n• "adicionar ${currentAsset==='fii'?'HGLG11':'VALE3'}"\n• "ver carteira"\n• "meu patrimônio"\n• "melhor DY"`;
+}
+
+// ═══════════════════════════════════════════════
+// DEBUG DIVIDENDOS
+// ═══════════════════════════════════════════════
+async function diagnosticoDiv() {
+  const token = localStorage.getItem('brapi-token');
+  if (!token) { openTokenModal(); return; }
+  const lista = getAtivos();
+  if (!lista.length) { notify('Nenhum ativo cadastrado.', true); return; }
+  const ticker = lista[0].ticker;
+  notify(`🔍 Testando ${ticker}...`);
+  try {
+    const r = await fetch(`https://brapi.dev/api/quote/${ticker}?fundamental=true&dividends=true&token=${token}`);
+    const d = await r.json();
+    const res = d.results?.[0];
+    if (!res) { alert(`❌ Brapi não retornou dados para ${ticker}.
+
+Resposta:
+${JSON.stringify(d, null, 2).slice(0,500)}`); return; }
+    const divData = res.dividendsData;
+    const cash = divData?.cashDividends;
+    const msg = [
+      `Ticker: ${ticker}`,
+      `Preço: R$ ${res.regularMarketPrice}`,
+      `dividendsData: ${divData ? 'presente' : 'ausente'}`,
+      `cashDividends: ${cash ? cash.length + ' registros' : 'ausente'}`,
+      cash?.length ? `Último: ${JSON.stringify(cash[0])}` : '',
+      `earningsPerShare: ${res.earningsPerShare ?? 'ausente'}`,
+      `
+Chaves em dividendsData: ${divData ? Object.keys(divData).join(', ') : 'n/a'}`,
+    ].filter(Boolean).join('
+');
+    alert(msg);
+  } catch(e) {
+    alert(`Erro: ${e.message}`);
+  }
 }
 
 // ═══════════════════════════════════════════════
