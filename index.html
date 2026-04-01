@@ -2348,26 +2348,21 @@ async function diagnosticoDiv() {
     const r = await fetch(`https://brapi.dev/api/quote/${ticker}?fundamental=true&dividends=true&token=${token}`);
     const d = await r.json();
     const res = d.results?.[0];
-    if (!res) { alert(`❌ Brapi não retornou dados para ${ticker}.
-
-Resposta:
-${JSON.stringify(d, null, 2).slice(0,500)}`); return; }
+    if (!res) { alert('Brapi sem dados para ' + ticker + '. Resposta: ' + JSON.stringify(d).slice(0,300)); return; }
     const divData = res.dividendsData;
     const cash = divData?.cashDividends;
-    const msg = [
-      `Ticker: ${ticker}`,
-      `Preço: R$ ${res.regularMarketPrice}`,
-      `dividendsData: ${divData ? 'presente' : 'ausente'}`,
-      `cashDividends: ${cash ? cash.length + ' registros' : 'ausente'}`,
-      cash?.length ? `Último: ${JSON.stringify(cash[0])}` : '',
-      `earningsPerShare: ${res.earningsPerShare ?? 'ausente'}`,
-      `
-Chaves em dividendsData: ${divData ? Object.keys(divData).join(', ') : 'n/a'}`,
-    ].filter(Boolean).join('
-');
-    alert(msg);
+    const linhas = [
+      'Ticker: ' + ticker,
+      'Preco: R$ ' + res.regularMarketPrice,
+      'dividendsData: ' + (divData ? 'presente' : 'AUSENTE'),
+      'cashDividends: ' + (cash ? cash.length + ' registros' : 'AUSENTE'),
+      cash && cash.length ? 'Ultimo: ' + JSON.stringify(cash[0]) : '',
+      'earningsPerShare: ' + (res.earningsPerShare ?? 'ausente'),
+      'Chaves em dividendsData: ' + (divData ? Object.keys(divData).join(', ') : 'n/a'),
+    ].filter(Boolean);
+    alert(linhas.join('\n'));
   } catch(e) {
-    alert(`Erro: ${e.message}`);
+    alert('Erro: ' + e.message);
   }
 }
 
