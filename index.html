@@ -2050,48 +2050,64 @@ async function buscarDividendos() {
   const proventos = getProventos();
   const hoje = new Date().toISOString().slice(0,7);
 
-  await Promise.all(lista.map(async f => {
+  // Busca dividendos: tenta 3 endpoints em sequência para cada ticker
+  const buscarUm = async (f) => {
+    // ── Tentativa 1: Brapi quote com dividends=true ──
     try {
       const r = await fetch(`https://brapi.dev/api/quote/${f.ticker}?fundamental=true&dividends=true&token=${token}`);
       const d = await r.json();
       const res = d.results?.[0];
-      if (!res) { semDividendo.push(f.ticker); return; }
-      if (res.regularMarketPrice) f.atual = res.regularMarketPrice;
-      // Tenta múltiplos campos que a Brapi usa para FIIs e Ações
-      const divs = res.dividendsData?.cashDividends || res.dividendsData?.dividends || [];
-      const lastDiv = divs.length ? divs[0] : null;
-      // Para FIIs: campo "rate" ou "value"; para Ações: "rate" ou "amount"
-      const val = lastDiv
-        ? parseFloat(lastDiv.rate ?? lastDiv.value ?? lastDiv.amount ?? 0) || 0
-        : 0;
-
+      if (res?.regularMarketPrice) f.atual = res.regularMarketPrice;
+      const divs = res?.dividendsData?.cashDividends || res?.dividendsData?.dividends || [];
+      const last = divs[0];
+      const val = last ? parseFloat(last.rate ?? last.value ?? last.amount ?? 0) || 0 : 0;
       if (val > 0) {
         f.dividendo = val;
-        const dataDiv = lastDiv?.paymentDate || lastDiv?.date_payment || lastDiv?.approvedOn || hoje;
-        const mesDiv = String(dataDiv).slice(0,7);
-        const jaExiste = proventos.some(d => d.ticker === f.ticker && d.data?.startsWith(mesDiv));
-        if (!jaExiste && f.cotas > 0) {
-          proventos.push({
-            ticker: f.ticker,
-            data: String(dataDiv).slice(0,10),
-            valor: val,
-            cotas: f.cotas,
-            total: parseFloat((val * f.cotas).toFixed(2))
-          });
+        const dataDiv = String(last.paymentDate || last.date_payment || last.approvedOn || hoje).slice(0,10);
+        const mesDiv = dataDiv.slice(0,7);
+        if (!proventos.some(d => d.ticker === f.ticker && d.data?.startsWith(mesDiv)) && f.cotas > 0) {
+          proventos.push({ ticker: f.ticker, data: dataDiv, valor: val, cotas: f.cotas, total: parseFloat((val*f.cotas).toFixed(2)) });
         }
-        atualizados++;
-      } else {
-        // Tenta pegar o dividendo do campo de resumo (earningsPerShare para FIIs de papel)
-        const dyField = res.earningsPerShare || res.dividendYield || 0;
-        if (dyField > 0 && dyField < 50) { // sanity check: DY por cota < R$50
-          f.dividendo = parseFloat(dyField.toFixed(4));
-          atualizados++;
-        } else {
-          semDividendo.push(f.ticker);
-        }
+        return true;
       }
-    } catch(e) { semDividendo.push(f.ticker); }
-  }));
+    } catch(e) {}
+
+    // ── Tentativa 2: Brapi endpoint dedicado de dividendos ──
+    try {
+      const r2 = await fetch(`https://brapi.dev/api/quote/${f.ticker}/dividends?token=${token}`);
+      const d2 = await r2.json();
+      const divs2 = d2.results?.[0]?.dividends || d2.dividends || [];
+      const last2 = divs2[0];
+      const val2 = last2 ? parseFloat(last2.rate ?? last2.value ?? last2.amount ?? 0) || 0 : 0;
+      if (val2 > 0) {
+        f.dividendo = val2;
+        const dataDiv2 = String(last2.paymentDate || last2.date || hoje).slice(0,10);
+        const mesDiv2 = dataDiv2.slice(0,7);
+        if (!proventos.some(d => d.ticker === f.ticker && d.data?.startsWith(mesDiv2)) && f.cotas > 0) {
+          proventos.push({ ticker: f.ticker, data: dataDiv2, valor: val2, cotas: f.cotas, total: parseFloat((val2*f.cotas).toFixed(2)) });
+        }
+        return true;
+      }
+    } catch(e) {}
+
+    // ── Tentativa 3: Brapi quote simples — pega earningsPerShare / dividendYield ──
+    try {
+      const r3 = await fetch(`https://brapi.dev/api/quote/${f.ticker}?token=${token}`);
+      const d3 = await r3.json();
+      const res3 = d3.results?.[0];
+      if (res3?.regularMarketPrice) f.atual = res3.regularMarketPrice;
+      // earningsPerShare para FIIs é o último dividendo por cota
+      const eps = parseFloat(res3?.earningsPerShare ?? 0);
+      if (eps > 0 && eps < 100) {
+        f.dividendo = parseFloat(eps.toFixed(4));
+        return true;
+      }
+    } catch(e) {}
+
+    return false;
+  };
+
+  const resultados = await Promise.all(lista.map(f => buscarUm(f).then(ok => { if(ok) atualizados++; else semDividendo.push(f.ticker); })));
 
   btns.forEach(b => { if (b) b.disabled = false; });
   icons.forEach(ic => { if (ic) ic.classList.remove('spinning'); });
