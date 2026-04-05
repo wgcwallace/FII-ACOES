@@ -592,33 +592,33 @@ select option { background:var(--surface2); }
         <!-- SLIDE 1 -->
         <div class="dashboard-slide">
           <div class="dashboard-grid">
-            <div class="card">
+            <div class="card span2">
               <div class="card-label">Patrimônio Total</div>
-              <div class="card-value" id="d-patrimonio" style="font-size:clamp(13px,3.5vw,18px)">R$ 0,00</div>
+              <div class="card-value green" id="d-patrimonio" style="font-size:22px;letter-spacing:-0.5px">R$ 0,00</div>
               <div class="card-sub" id="d-pat-sub">soma de todos os ativos</div>
             </div>
-            <div class="card">
-              <div class="card-label" id="d-renda-label">Renda no Mês</div>
-              <div class="card-value gold" id="d-renda" style="font-size:clamp(13px,3.5vw,18px)">R$ 0,00</div>
-              <div class="card-sub" id="d-renda-sub">provento acumulado</div>
-            </div>
-            <div class="card">
-              <div class="card-label" id="d-yield-label">Yield Médio</div>
-              <div class="card-value blue" id="d-yield">0,00%</div>
-              <div class="card-sub" id="d-yield-sub">dividend yield carteira</div>
+            <div class="card" style="display:grid;grid-template-rows:1fr 1fr;gap:0">
+              <div style="padding-bottom:10px;border-bottom:1px solid var(--border)">
+                <div class="card-label" id="d-renda-label">Renda no Mês</div>
+                <div class="card-value gold" id="d-renda" style="font-size:16px">R$ 0,00</div>
+              </div>
+              <div style="padding-top:10px">
+                <div class="card-label" id="d-yield-label">Yield Médio</div>
+                <div class="card-value blue" id="d-yield" style="font-size:16px">0,00%</div>
+              </div>
             </div>
 
-            <div class="card span2">
+            <div class="card span3">
               <div class="section-header">
                 <div class="card-label" style="margin:0">Evolução do Patrimônio</div>
               </div>
-              <div class="chart-container">
+              <div class="chart-container" style="height:170px">
                 <canvas id="chart-patrimonio"></canvas>
               </div>
             </div>
-            <div class="card">
-              <div class="card-label" id="chart-setor-label">Alocação por Setor</div>
-              <div class="chart-container">
+            <div class="card span3">
+              <div class="card-label" id="chart-setor-label" style="margin-bottom:10px">Composição da Carteira por Setor</div>
+              <div class="chart-container" style="height:220px">
                 <canvas id="chart-setor"></canvas>
               </div>
             </div>
