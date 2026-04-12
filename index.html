@@ -2092,7 +2092,18 @@ async function buscarDividendos() {
   icons.forEach(ic => { if (ic) ic.classList.remove('spinning'); });
   const labelFinal = currentAsset === 'fii' ? 'Buscar dividendos' : 'Buscar proventos';
   labels.forEach(lb => { if (lb) lb.textContent = labelFinal; });
-  save();
+  // Garante que os arrays globais estão sincronizados antes de salvar
+  // (buscarUm modifica f.dividendo/f.atual por referência nos arrays fiis/acoes)
+  if (currentAsset === 'fii') {
+    localStorage.setItem('fiis', JSON.stringify(fiis));
+    localStorage.setItem('dividendosFII', JSON.stringify(dividendosFII));
+  } else {
+    localStorage.setItem('acoes', JSON.stringify(acoes));
+    localStorage.setItem('proventosAcoes', JSON.stringify(proventosAcoes));
+  }
+  updateHeader();
+  updateProvSelect();
+  renderCarteira();
   renderProventos();
   renderDashboard();
   if (atualizados > 0) notify(semDividendo.length ? `✅ ${atualizados} com dividendo. Sem dados: ${semDividendo.join(', ')}` : `✅ ${atualizados} dividendos atualizados!`);
