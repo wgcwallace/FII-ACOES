@@ -798,7 +798,7 @@ select option { background:var(--surface2); }
               <button class="btn" id="btn-buscar-div" onclick="buscarDividendos()" style="font-size:12px;padding:5px 12px;color:var(--gold);border-color:var(--gold)">
                 <span id="div-icon">💰</span> <span id="div-label-btn">Buscar dividendos</span>
               </button>
-              <button class="btn" onclick="diagnosticoDiv()" style="font-size:12px;padding:5px 10px;color:var(--acoes);border-color:var(--acoes)" title="Testar retorno da Brapi para o primeiro FII">🔍 Debug</button>
+
               <button class="btn" onclick="resetCarteira()" style="font-size:12px;padding:5px 12px;color:var(--red);border-color:var(--red)">🗑️ Limpar carteira</button>
             </div>
           </div>
@@ -2029,60 +2029,78 @@ async function buscarDividendos() {
   const proventos = getProventos();
   const hoje = new Date().toISOString().slice(0,7);
 
-  // Busca dividendos: tenta 3 endpoints em sequência para cada ticker
-  const buscarUm = async (f) => {
-    // ── Tentativa 1: Brapi quote com dividends=true ──
+  // ── Busca cotação atual via Brapi (não precisa de plano pago) ──
+  const buscarCotacao = async (f) => {
     try {
-      const r = await fetch(`https://brapi.dev/api/quote/${f.ticker}?fundamental=true&dividends=true&token=${token}`);
+      const r = await fetch(`https://brapi.dev/api/quote/${f.ticker}?token=${token}`);
+      const d = await r.json();
+      const preco = d.results?.[0]?.regularMarketPrice;
+      if (preco) f.atual = preco;
+    } catch(e) {}
+  };
+
+  // ── Busca dividendo via HG Brasil (gratuito, sem token) ──
+  const buscarDivHG = async (f) => {
+    try {
+      const r = await fetch(`https://api.hgbrasil.com/finance/stock_price?key=demo&symbol=${f.ticker}`);
+      const d = await r.json();
+      const res = d.results?.[f.ticker];
+      if (res?.price) f.atual = res.price;
+      // HG não tem dividendos diretos — usa como fallback de cotação
+    } catch(e) {}
+  };
+
+  // ── Busca dividendo via endpoint público do Status Invest ──
+  const buscarDivStatusInvest = async (f) => {
+    try {
+      const r = await fetch(
+        `https://statusinvest.com.br/acao/companytickerprovents?ticker=${f.ticker}&chartProventsType=2`,
+        { headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://statusinvest.com.br' } }
+      );
+      const d = await r.json();
+      // Pega o provento mais recente
+      const provs = d?.assetEarningsModels || [];
+      if (provs.length) {
+        const last = provs[provs.length - 1];
+        const val = parseFloat(last.value ?? last.earningPerShare ?? 0) || 0;
+        if (val > 0) {
+          f.dividendo = parseFloat(val.toFixed(4));
+          const dataDiv = String(last.pd || last.ed || hoje).slice(0,10).replace(/\//g,'-');
+          const mesDiv = dataDiv.slice(0,7);
+          if (!proventos.some(p => p.ticker === f.ticker && p.data?.startsWith(mesDiv)) && f.cotas > 0) {
+            proventos.push({ ticker: f.ticker, data: dataDiv, valor: val, cotas: f.cotas, total: parseFloat((val*f.cotas).toFixed(2)) });
+          }
+          return true;
+        }
+      }
+    } catch(e) {}
+    return false;
+  };
+
+  // ── Busca dividendo via Brapi com earningsPerShare (plano free, sem dividends) ──
+  const buscarDivBrapi = async (f) => {
+    try {
+      const r = await fetch(`https://brapi.dev/api/quote/${f.ticker}?fundamental=true&token=${token}`);
       const d = await r.json();
       const res = d.results?.[0];
       if (res?.regularMarketPrice) f.atual = res.regularMarketPrice;
-      const divs = res?.dividendsData?.cashDividends || res?.dividendsData?.dividends || [];
-      const last = divs[0];
-      const val = last ? parseFloat(last.rate ?? last.value ?? last.amount ?? 0) || 0 : 0;
-      if (val > 0) {
-        f.dividendo = val;
-        const dataDiv = String(last.paymentDate || last.date_payment || last.approvedOn || hoje).slice(0,10);
-        const mesDiv = dataDiv.slice(0,7);
-        if (!proventos.some(d => d.ticker === f.ticker && d.data?.startsWith(mesDiv)) && f.cotas > 0) {
-          proventos.push({ ticker: f.ticker, data: dataDiv, valor: val, cotas: f.cotas, total: parseFloat((val*f.cotas).toFixed(2)) });
-        }
-        return true;
-      }
-    } catch(e) {}
-
-    // ── Tentativa 2: Brapi endpoint dedicado de dividendos ──
-    try {
-      const r2 = await fetch(`https://brapi.dev/api/quote/${f.ticker}/dividends?token=${token}`);
-      const d2 = await r2.json();
-      const divs2 = d2.results?.[0]?.dividends || d2.dividends || [];
-      const last2 = divs2[0];
-      const val2 = last2 ? parseFloat(last2.rate ?? last2.value ?? last2.amount ?? 0) || 0 : 0;
-      if (val2 > 0) {
-        f.dividendo = val2;
-        const dataDiv2 = String(last2.paymentDate || last2.date || hoje).slice(0,10);
-        const mesDiv2 = dataDiv2.slice(0,7);
-        if (!proventos.some(d => d.ticker === f.ticker && d.data?.startsWith(mesDiv2)) && f.cotas > 0) {
-          proventos.push({ ticker: f.ticker, data: dataDiv2, valor: val2, cotas: f.cotas, total: parseFloat((val2*f.cotas).toFixed(2)) });
-        }
-        return true;
-      }
-    } catch(e) {}
-
-    // ── Tentativa 3: Brapi quote simples — pega earningsPerShare / dividendYield ──
-    try {
-      const r3 = await fetch(`https://brapi.dev/api/quote/${f.ticker}?token=${token}`);
-      const d3 = await r3.json();
-      const res3 = d3.results?.[0];
-      if (res3?.regularMarketPrice) f.atual = res3.regularMarketPrice;
-      // earningsPerShare para FIIs é o último dividendo por cota
-      const eps = parseFloat(res3?.earningsPerShare ?? 0);
-      if (eps > 0 && eps < 100) {
+      // earningsPerShare no plano free representa o último rendimento/dividendo por cota
+      const eps = parseFloat(res?.earningsPerShare ?? 0);
+      if (eps > 0 && eps < 200) {
         f.dividendo = parseFloat(eps.toFixed(4));
         return true;
       }
     } catch(e) {}
+    return false;
+  };
 
+  const buscarUm = async (f) => {
+    // 1. Atualiza cotação via Brapi (funciona no plano free)
+    await buscarCotacao(f);
+    // 2. Tenta dividendo via Status Invest
+    if (await buscarDivStatusInvest(f)) return true;
+    // 3. Fallback: earningsPerShare via Brapi fundamental
+    if (await buscarDivBrapi(f)) return true;
     return false;
   };
 
