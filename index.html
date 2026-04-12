@@ -2036,10 +2036,31 @@ async function buscarDividendos() {
   for (const chunk of chunks) {
     const symbols = chunk.map(f => f.ticker).join(',');
     try {
-      // HG Brasil — gratuito, CORS liberado, retorna cotação + last_payment (dividendo)
-      const r = await fetch(`https://api.hgbrasil.com/finance/stock_price?key=demo&symbol=${symbols}`);
-      const d = await r.json();
+      // HG Brasil — gratuito, CORS liberado
+      const url = `https://api.hgbrasil.com/finance/stock_price?key=demo&symbol=${symbols}`;
+      const r = await fetch(url);
+      const text = await r.text();
+      let d;
+      try { d = JSON.parse(text); } catch(e) {
+        // Só mostra erro no primeiro lote para não spammar
+        if (chunk === chunks[0]) alert('HG Brasil resposta inesperada:\n' + text.slice(0,300));
+        chunk.forEach(f => semDados.push(f.ticker));
+        return;
+      }
+
+      // Verifica se a key demo foi bloqueada
+      if (d.error || d.valid_key === false) {
+        if (chunk === chunks[0]) alert('HG Brasil erro:\n' + JSON.stringify(d).slice(0,300));
+        chunk.forEach(f => semDados.push(f.ticker));
+        return;
+      }
+
       const results = d.results || {};
+
+      // Testa se tem pelo menos um resultado
+      if (chunk === chunks[0] && Object.keys(results).length === 0) {
+        alert('HG Brasil sem resultados.\nResposta: ' + JSON.stringify(d).slice(0,400));
+      }
 
       chunk.forEach(f => {
         const res = results[f.ticker];
@@ -2052,7 +2073,6 @@ async function buscarDividendos() {
         const lastDiv = parseFloat(res.financials?.dividends?.last_payment ?? 0) || 0;
         if (lastDiv > 0) {
           f.dividendo = parseFloat(lastDiv.toFixed(4));
-          // Registra no histórico de proventos se ainda não existe para o mês corrente
           const mesHoje = hoje.slice(0, 7);
           const jaExiste = proventos.some(p => p.ticker === f.ticker && p.data?.startsWith(mesHoje));
           if (!jaExiste && f.cotas > 0) {
@@ -2066,12 +2086,12 @@ async function buscarDividendos() {
           }
           atualizados++;
         } else {
-          // Cotação atualizada mas sem dividendo disponível
           if (res.price) atualizados++;
           else semDados.push(f.ticker);
         }
       });
     } catch(e) {
+      if (chunk === chunks[0]) alert('Erro ao chamar HG Brasil: ' + e.message);
       chunk.forEach(f => semDados.push(f.ticker));
     }
 
