@@ -561,7 +561,7 @@ select option { background:var(--surface2); }
         </div>
       </div>
       <div class="topbar-actions">
-        <button class="icon-btn" onclick="openTokenModal()" title="Token Brapi">🔑</button>
+        <button class="icon-btn" onclick="openTokenModal()" title="Token Brapi (opcional — para cotações via Brapi)">🔑</button>
         <button class="icon-btn" id="btn-atualizar" onclick="atualizarCotacoes()" title="Atualizar cotações">
           <span id="upd-icon">🔄</span>
         </button>
@@ -796,7 +796,7 @@ select option { background:var(--surface2); }
             <div class="form-title" id="form-cart-title">📋 Minha Carteira FII</div>
             <div style="display:flex;gap:8px">
               <button class="btn" id="btn-buscar-div" onclick="buscarDividendos()" style="font-size:12px;padding:5px 12px;color:var(--gold);border-color:var(--gold)">
-                <span id="div-icon">💰</span> <span id="div-label-btn">Buscar dividendos</span>
+                <span id="div-icon">💰</span> <span id="div-label-btn">Atualizar cotações</span>
               </button>
 
               <button class="btn" onclick="resetCarteira()" style="font-size:12px;padding:5px 12px;color:var(--red);border-color:var(--red)">🗑️ Limpar carteira</button>
@@ -843,7 +843,7 @@ select option { background:var(--surface2); }
             </div>
           </div>
           <button class="btn" id="btn-buscar-div-prov" onclick="buscarDividendos()" style="font-size:12px;padding:5px 12px;color:var(--gold);border-color:var(--gold);margin-bottom:4px">
-            <span id="div-icon-prov">💰</span> <span id="div-label-prov">Buscar dividendos automático</span>
+            <span id="div-icon-prov">💰</span> <span id="div-label-prov">Atualizar cotações</span>
           </button>
         </div>
 
@@ -1130,7 +1130,7 @@ function switchAsset(type) {
     document.getElementById('prov-total-label').textContent = 'Total Recebido';
     document.getElementById('prov-renda-label').textContent = 'Renda Mensal Est.';
     document.getElementById('prov-hist-label').textContent = 'Histórico de Dividendos';
-    document.getElementById('div-label-btn').textContent = 'Buscar dividendos';
+    document.getElementById('div-label-btn').textContent = 'Atualizar cotações';
     document.getElementById('div-label-prov').textContent = 'Buscar dividendos automático';
     document.getElementById('th-cart-div').textContent = 'Dividend.';
     document.getElementById('edit-div-label').textContent = 'Dividendo por Cota (R$)';
@@ -1178,7 +1178,7 @@ function switchAsset(type) {
     document.getElementById('prov-total-label').textContent = 'Total Recebido';
     document.getElementById('prov-renda-label').textContent = 'Renda Mensal Est.';
     document.getElementById('prov-hist-label').textContent = 'Histórico de Proventos';
-    document.getElementById('div-label-btn').textContent = 'Buscar proventos';
+    document.getElementById('div-label-btn').textContent = 'Atualizar cotações';
     document.getElementById('div-label-prov').textContent = 'Buscar proventos automático';
     document.getElementById('th-cart-div').textContent = 'Provento';
     document.getElementById('edit-div-label').textContent = 'Provento por Ação (R$)';
@@ -2015,103 +2015,75 @@ async function atualizarCotacoes() {
 
 async function buscarDividendos() {
   const token = localStorage.getItem('brapi-token');
-  if (!token) { openTokenModal(); return; }
   const lista = getAtivos();
   if (!lista.length) { notify('Nenhum ativo cadastrado.', true); return; }
-  // Desabilita ambos os botões (carteira + proventos)
+
   const btns   = ['btn-buscar-div','btn-buscar-div-prov'].map(id => document.getElementById(id));
   const icons  = ['div-icon','div-icon-prov'].map(id => document.getElementById(id));
   const labels = ['div-label-btn','div-label-prov'].map(id => document.getElementById(id));
   btns.forEach(b => { if (b) b.disabled = true; });
   icons.forEach(ic => { if (ic) ic.classList.add('spinning'); });
   labels.forEach(lb => { if (lb) lb.textContent = 'Buscando...'; });
-  let atualizados = 0, semDividendo = [];
+
+  let atualizados = 0, semDados = [];
   const proventos = getProventos();
-  const hoje = new Date().toISOString().slice(0,7);
+  const hoje = new Date().toISOString().slice(0,10);
 
-  // ── Busca cotação atual via Brapi (não precisa de plano pago) ──
-  const buscarCotacao = async (f) => {
-    try {
-      const r = await fetch(`https://brapi.dev/api/quote/${f.ticker}?token=${token}`);
-      const d = await r.json();
-      const preco = d.results?.[0]?.regularMarketPrice;
-      if (preco) f.atual = preco;
-    } catch(e) {}
-  };
+  // Busca em lotes de 5 tickers (limite da HG Brasil no plano demo)
+  const chunks = [];
+  for (let i = 0; i < lista.length; i += 5) chunks.push(lista.slice(i, i + 5));
 
-  // ── Busca dividendo via HG Brasil (gratuito, sem token) ──
-  const buscarDivHG = async (f) => {
+  for (const chunk of chunks) {
+    const symbols = chunk.map(f => f.ticker).join(',');
     try {
-      const r = await fetch(`https://api.hgbrasil.com/finance/stock_price?key=demo&symbol=${f.ticker}`);
+      // HG Brasil — gratuito, CORS liberado, retorna cotação + last_payment (dividendo)
+      const r = await fetch(`https://api.hgbrasil.com/finance/stock_price?key=demo&symbol=${symbols}`);
       const d = await r.json();
-      const res = d.results?.[f.ticker];
-      if (res?.price) f.atual = res.price;
-      // HG não tem dividendos diretos — usa como fallback de cotação
-    } catch(e) {}
-  };
+      const results = d.results || {};
 
-  // ── Busca dividendo via endpoint público do Status Invest ──
-  const buscarDivStatusInvest = async (f) => {
-    try {
-      const r = await fetch(
-        `https://statusinvest.com.br/acao/companytickerprovents?ticker=${f.ticker}&chartProventsType=2`,
-        { headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://statusinvest.com.br' } }
-      );
-      const d = await r.json();
-      // Pega o provento mais recente
-      const provs = d?.assetEarningsModels || [];
-      if (provs.length) {
-        const last = provs[provs.length - 1];
-        const val = parseFloat(last.value ?? last.earningPerShare ?? 0) || 0;
-        if (val > 0) {
-          f.dividendo = parseFloat(val.toFixed(4));
-          const dataDiv = String(last.pd || last.ed || hoje).slice(0,10).replace(/\//g,'-');
-          const mesDiv = dataDiv.slice(0,7);
-          if (!proventos.some(p => p.ticker === f.ticker && p.data?.startsWith(mesDiv)) && f.cotas > 0) {
-            proventos.push({ ticker: f.ticker, data: dataDiv, valor: val, cotas: f.cotas, total: parseFloat((val*f.cotas).toFixed(2)) });
+      chunk.forEach(f => {
+        const res = results[f.ticker];
+        if (!res) { semDados.push(f.ticker); return; }
+
+        // Atualiza cotação
+        if (res.price) f.atual = res.price;
+
+        // Pega último dividendo/rendimento
+        const lastDiv = parseFloat(res.financials?.dividends?.last_payment ?? 0) || 0;
+        if (lastDiv > 0) {
+          f.dividendo = parseFloat(lastDiv.toFixed(4));
+          // Registra no histórico de proventos se ainda não existe para o mês corrente
+          const mesHoje = hoje.slice(0, 7);
+          const jaExiste = proventos.some(p => p.ticker === f.ticker && p.data?.startsWith(mesHoje));
+          if (!jaExiste && f.cotas > 0) {
+            proventos.push({
+              ticker: f.ticker,
+              data: hoje,
+              valor: lastDiv,
+              cotas: f.cotas,
+              total: parseFloat((lastDiv * f.cotas).toFixed(2))
+            });
           }
-          return true;
+          atualizados++;
+        } else {
+          // Cotação atualizada mas sem dividendo disponível
+          if (res.price) atualizados++;
+          else semDados.push(f.ticker);
         }
-      }
-    } catch(e) {}
-    return false;
-  };
+      });
+    } catch(e) {
+      chunk.forEach(f => semDados.push(f.ticker));
+    }
 
-  // ── Busca dividendo via Brapi com earningsPerShare (plano free, sem dividends) ──
-  const buscarDivBrapi = async (f) => {
-    try {
-      const r = await fetch(`https://brapi.dev/api/quote/${f.ticker}?fundamental=true&token=${token}`);
-      const d = await r.json();
-      const res = d.results?.[0];
-      if (res?.regularMarketPrice) f.atual = res.regularMarketPrice;
-      // earningsPerShare no plano free representa o último rendimento/dividendo por cota
-      const eps = parseFloat(res?.earningsPerShare ?? 0);
-      if (eps > 0 && eps < 200) {
-        f.dividendo = parseFloat(eps.toFixed(4));
-        return true;
-      }
-    } catch(e) {}
-    return false;
-  };
-
-  const buscarUm = async (f) => {
-    // 1. Atualiza cotação via Brapi (funciona no plano free)
-    await buscarCotacao(f);
-    // 2. Tenta dividendo via Status Invest
-    if (await buscarDivStatusInvest(f)) return true;
-    // 3. Fallback: earningsPerShare via Brapi fundamental
-    if (await buscarDivBrapi(f)) return true;
-    return false;
-  };
-
-  const resultados = await Promise.all(lista.map(f => buscarUm(f).then(ok => { if(ok) atualizados++; else semDividendo.push(f.ticker); })));
+    // Pequena pausa entre lotes para não sobrecarregar a API
+    if (chunks.length > 1) await new Promise(res => setTimeout(res, 300));
+  }
 
   btns.forEach(b => { if (b) b.disabled = false; });
   icons.forEach(ic => { if (ic) ic.classList.remove('spinning'); });
-  const labelFinal = currentAsset === 'fii' ? 'Buscar dividendos' : 'Buscar proventos';
-  labels.forEach(lb => { if (lb) lb.textContent = labelFinal; });
-  // Garante que os arrays globais estão sincronizados antes de salvar
-  // (buscarUm modifica f.dividendo/f.atual por referência nos arrays fiis/acoes)
+  labels.forEach(lb => { if (lb) lb.textContent = 'Atualizar cotações'; });
+
+  // Salva e atualiza tudo
   if (currentAsset === 'fii') {
     localStorage.setItem('fiis', JSON.stringify(fiis));
     localStorage.setItem('dividendosFII', JSON.stringify(dividendosFII));
@@ -2120,247 +2092,21 @@ async function buscarDividendos() {
     localStorage.setItem('proventosAcoes', JSON.stringify(proventosAcoes));
   }
   updateHeader();
-  updateProvSelect();
   renderCarteira();
   renderProventos();
   renderDashboard();
-  if (atualizados > 0) notify(semDividendo.length ? `✅ ${atualizados} com dividendo. Sem dados: ${semDividendo.join(', ')}` : `✅ ${atualizados} dividendos atualizados!`);
-  else notify('⚠️ Nenhum dividendo encontrado.', true);
+
+  if (atualizados > 0) {
+    notify(semDados.length
+      ? `✅ ${atualizados} atualizados. Sem dados: ${semDados.join(', ')}`
+      : `✅ ${atualizados} ativos atualizados!`
+    );
+  } else {
+    notify('⚠️ Nenhum dado encontrado. Tente novamente.', true);
+  }
 }
 
-// ═══════════════════════════════════════════════
-// CHAT
-// ═══════════════════════════════════════════════
-let chatState = null;
-let chatPending = {};
 
-function getTime() { return new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); }
-function appendMsg(text, type) {
-  const msgs = document.getElementById('chat-messages');
-  const div = document.createElement('div');
-  div.className = `msg ${type}`;
-  const safe = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const bubbleCls = type==='user' && currentAsset==='acoes' ? 'bubble acoes-bubble' : 'bubble';
-  div.innerHTML = `<div class="${bubbleCls}" style="white-space:pre-wrap">${safe}</div><div class="msg-time">${getTime()}</div>`;
-  msgs.appendChild(div);
-  msgs.scrollTop = msgs.scrollHeight;
-  return div;
-}
-function appendMsgHTML(html, type) {
-  const msgs = document.getElementById('chat-messages');
-  const div = document.createElement('div');
-  div.className = `msg ${type}`;
-  div.innerHTML = `<div class="bubble">${html}</div><div class="msg-time">${getTime()}</div>`;
-  msgs.appendChild(div);
-  msgs.scrollTop = msgs.scrollHeight;
-}
-function showTyping() {
-  const msgs = document.getElementById('chat-messages');
-  const div = document.createElement('div');
-  div.className = 'msg bot';
-  div.id = 'typing-indicator';
-  const cls = currentAsset === 'fii' ? 'fii-td' : 'acoes-td';
-  div.innerHTML = `<div class="bubble"><div class="typing-bubble"><div class="typing-dot ${cls}"></div><div class="typing-dot ${cls}"></div><div class="typing-dot ${cls}"></div></div></div>`;
-  msgs.appendChild(div);
-  msgs.scrollTop = msgs.scrollHeight;
-}
-function hideTyping() { document.getElementById('typing-indicator')?.remove(); }
-
-function sendChip(text) {
-  document.getElementById('chat-input').value = text;
-  sendMessage();
-}
-function handleKey(e) { if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }
-function autoResize(el) { el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,100)+'px'; }
-function limparChat() { document.getElementById('chat-messages').innerHTML=''; reiniciarChat(); }
-function reiniciarChat() {
-  chatState = null; chatPending = {};
-  const botName = currentAsset==='fii' ? 'FII Assistant' : 'Ações Assistant';
-  const tipAtivo = currentAsset==='fii' ? 'FIIs' : 'ações';
-  appendMsg(`👋 Olá! Sou o ${botName}.\n\nPosso ajudar com:\n• Adicionar ${tipAtivo} à carteira\n• Registrar proventos\n• Consultar sua carteira\n• Analisar seu portfólio\n\nDigite livremente!`, 'bot');
-}
-
-function sendMessage() {
-  const input = document.getElementById('chat-input');
-  const text = input.value.trim();
-  if (!text) return;
-  input.value = '';
-  input.style.height = 'auto';
-  appendMsg(text, 'user');
-  showTyping();
-  setTimeout(() => {
-    hideTyping();
-    const reply = processChat(text);
-    if (reply && typeof reply === 'object' && reply.__html) {
-      appendMsgHTML(reply.__html, 'bot');
-    } else {
-      appendMsg(reply, 'bot');
-    }
-    renderCarteira();
-    renderDashboard();
-  }, 500);
-}
-
-function num(str) { return parseFloat((str||'0').replace(/[^\d,\.]/g,'').replace(',','.')) || 0; }
-function extractTicker(text) {
-  const upper = text.toUpperCase();
-  // Ações: 4 letras + 1-2 dígitos
-  let m = upper.match(/(?:^|[\s\-:,\/])([A-Z]{4}[0-9]{1,2}B?)(?:[\s\-:,\/]|$)/);
-  if (m) return m[1];
-  m = upper.match(/([A-Z]{4}[0-9]{1,2}B?)/);
-  return m ? m[1] : null;
-}
-function extractNumbers(text) {
-  const semTicker = text.toUpperCase().replace(/[A-Z]{4}[0-9]{1,2}B?/g,' ');
-  return [...semTicker.matchAll(/\d+(?:[,.]\d+)?/g)].map(m=>parseFloat(m[0].replace(',','.'))).filter(n=>!isNaN(n)&&n>0);
-}
-
-function processChat(text) {
-  const t = text.toLowerCase();
-  const lista = getAtivos();
-  const proventos = getProventos();
-  const assetName = currentAsset === 'fii' ? 'FII' : 'ação';
-  const assetsName = currentAsset === 'fii' ? 'FIIs' : 'ações';
-  const provName = currentAsset === 'fii' ? 'dividendo' : 'provento';
-
-  // ── FLUXO GUIADO ──
-  if (chatState === 'add_ticker') {
-    const ticker = extractTicker(text) || text.toUpperCase().trim();
-    if (!ticker || ticker.length < 4) return `Não reconheci um ticker válido. Tente novamente (ex: ${currentAsset==='fii'?'HGLG11':'VALE3'}).`;
-    chatPending.ticker = ticker;
-    chatState = 'add_cotas';
-    return `📌 ${ticker} — quantas cotas você possui?`;
-  }
-  if (chatState === 'add_cotas') {
-    const nums = extractNumbers(text);
-    if (!nums.length) return 'Não entendi. Informe a quantidade de cotas (ex: 100).';
-    chatPending.cotas = nums[0];
-    chatState = 'add_pm';
-    return `💰 Qual o preço médio por cota? (R$)`;
-  }
-  if (chatState === 'add_pm') {
-    const nums = extractNumbers(text);
-    if (!nums.length) return 'Não entendi. Informe o preço médio (ex: 97,50).';
-    chatPending.pm = nums[0];
-    chatState = 'add_div';
-    return `📈 Qual o último ${provName} por cota? (deixe 0 se não souber)`;
-  }
-  if (chatState === 'add_div') {
-    const nums = extractNumbers(text);
-    chatPending.dividendo = (nums.length && nums[0] < chatPending.pm) ? nums[0] : 0;
-    chatState = null;
-    const ok = addAtivo(chatPending);
-    chatPending = {};
-    if (ok) return `✅ ${assetName} adicionado à sua carteira com sucesso!`;
-    return '❌ Erro ao adicionar. Tente novamente.';
-  }
-  if (chatState === 'prov_ticker') {
-    const ticker = extractTicker(text) || text.toUpperCase().trim();
-    const found = lista.find(f=>f.ticker===ticker);
-    if (!found) return `Não encontrei ${ticker} na sua carteira. Verifique o ticker.`;
-    chatPending.ticker = ticker;
-    chatState = 'prov_valor';
-    return `💰 Qual o valor do ${provName} por cota de ${ticker}? (R$)`;
-  }
-  if (chatState === 'prov_valor') {
-    const nums = extractNumbers(text);
-    if (!nums.length) return `Não entendi. Informe o valor por cota (ex: 0,85).`;
-    chatPending.valor = nums[0];
-    chatState = null;
-    const ok = addProvento(chatPending);
-    chatPending = {};
-    if (ok) return `✅ ${provName} registrado com sucesso!`;
-    return '❌ Erro ao registrar. Tente novamente.';
-  }
-
-  // ── INTENTS ──
-  if (t.includes('adicionar') || t.includes('add') || t.includes('comprei') || t.includes('nova ação') || t.includes('novo fii')) {
-    const ticker = extractTicker(text);
-    const nums = extractNumbers(text);
-    if (ticker && nums.length >= 2) {
-      const cotas = nums[0], pm = nums[1];
-      const div = nums[2] || 0;
-      const ok = addAtivo({ticker,cotas,pm,atual:pm,dividendo:div,setor:getSetorByTicker(ticker)||getSetores()[0]});
-      return ok ? `✅ ${ticker} adicionado! ${cotas} cotas @ R$ ${fmt(pm)}` : `❌ Erro ao adicionar ${ticker}.`;
-    }
-    chatState = 'add_ticker';
-    return `Vamos adicionar um ${assetName}! 📌\n\nQual o ticker? (ex: ${currentAsset==='fii'?'HGLG11':'VALE3'})`;
-  }
-
-  if (t.includes('registrar') && (t.includes('dividendo')||t.includes('provento'))) {
-    if (!lista.length) return `Você não tem ${assetsName} cadastrados ainda.`;
-    chatState = 'prov_ticker';
-    return `💰 Registrar ${provName}. Qual o ticker?`;
-  }
-
-  if (t.includes('carteira') || t.includes('posição') || t.includes('tenho')) {
-    if (!lista.length) return `Você ainda não tem ${assetsName} cadastrados.\n\nDigite "adicionar" para começar!`;
-    const s = calcStats();
-    let resp = `📊 Sua carteira de ${assetsName}:\n\n`;
-    lista.forEach(f => {
-      const val = (f.atual||f.pm)*f.cotas;
-      const dy = (f.atual||f.pm)>0?(f.dividendo||0)/(f.atual||f.pm)*100:0;
-      resp += `• ${f.ticker} — ${f.cotas} cotas · R$ ${fmt(val)} · DY: ${pct(dy)}\n`;
-    });
-    resp += `\n💰 Patrimônio: R$ ${fmt(s.patrimonio)}`;
-    resp += `\n📈 Renda mensal: R$ ${fmt(s.renda)}`;
-    return resp;
-  }
-
-  if (t.includes('patrimônio') || t.includes('patrimonio') || t.includes('total')) {
-    if (!lista.length) return `Nenhum ${assetName} cadastrado ainda.`;
-    const s = calcStats();
-    return `💼 Patrimônio total em ${assetsName}:\n\nR$ ${fmt(s.patrimonio)}\n\n💰 Renda mensal: R$ ${fmt(s.renda)}\n📊 Yield médio: ${pct(s.yield_)}\n📦 Ativos: ${lista.length}`;
-  }
-
-  if (t.includes('dividendo') || t.includes('provento') || t.includes('renda') || t.includes('yield')) {
-    if (!lista.length) return `Nenhum ${assetName} cadastrado ainda.`;
-    const sorted = [...lista].sort((a,b)=>{
-      const dyA = (a.atual||a.pm)>0?(a.dividendo||0)/(a.atual||a.pm)*100:0;
-      const dyB = (b.atual||b.pm)>0?(b.dividendo||0)/(b.atual||b.pm)*100:0;
-      return dyB-dyA;
-    });
-    let resp = `📈 ${assetsName} por Dividend Yield:\n\n`;
-    sorted.forEach((f,i) => {
-      const dy = (f.atual||f.pm)>0?(f.dividendo||0)/(f.atual||f.pm)*100:0;
-      resp += `${i+1}. ${f.ticker} — DY: ${pct(dy)} · R$ ${fmt(f.dividendo||0)}/cota\n`;
-    });
-    return resp;
-  }
-
-  if (t.includes('remover') || t.includes('deletar') || t.includes('excluir') || t.includes('vendi')) {
-    const ticker = extractTicker(text);
-    if (ticker && lista.find(f=>f.ticker===ticker)) {
-      removeAtivo(ticker);
-      return `✅ ${ticker} removido da carteira.`;
-    }
-    return `Qual ${assetName} deseja remover? Informe o ticker.`;
-  }
-
-  if (t.includes('ajuda') || t.includes('help') || t.includes('o que')) {
-    return `💡 Posso ajudar com:\n\n• "adicionar HGLG11 100 cotas a 97,50"\n• "registrar dividendo"\n• "ver minha carteira"\n• "meu patrimônio"\n• "melhor DY"\n• "remover XXXX11"`;
-  }
-
-  // fallback
-  const ticker = extractTicker(text);
-  if (ticker) {
-    const found = lista.find(f=>f.ticker===ticker);
-    if (found) {
-      const val = (found.atual||found.pm)*found.cotas;
-      const res = val - found.pm*found.cotas;
-      const dy = (found.atual||found.pm)>0?(found.dividendo||0)/(found.atual||found.pm)*100:0;
-      const sinal = res>=0?'+':'';
-      return `📊 ${ticker}\n\nCotas: ${found.cotas}\nPreço Médio: R$ ${fmt(found.pm)}\nPreço Atual: R$ ${fmt(found.atual||found.pm)}\nValor Total: R$ ${fmt(val)}\nResultado: ${sinal}R$ ${fmt(res)}\n${provName}/cota: R$ ${fmt(found.dividendo||0)}\nDY: ${pct(dy)}`;
-    }
-    return `Não encontrei ${ticker} na sua carteira. Deseja adicioná-lo?`;
-  }
-
-  return `Não entendi sua mensagem. Tente:\n• "adicionar ${currentAsset==='fii'?'HGLG11':'VALE3'}"\n• "ver carteira"\n• "meu patrimônio"\n• "melhor DY"`;
-}
-
-// ═══════════════════════════════════════════════
-// DEBUG DIVIDENDOS
-// ═══════════════════════════════════════════════
 async function diagnosticoDiv() {
   const token = localStorage.getItem('brapi-token');
   if (!token) { openTokenModal(); return; }
