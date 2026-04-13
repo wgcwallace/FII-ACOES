@@ -1016,7 +1016,7 @@ Use os atalhos abaixo ou digite livremente!</div>
 <div class="modal-overlay" id="modal-token" onclick="if(event.target===this)this.classList.remove('open')">
   <div class="token-modal">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-      <div style="font-family:'Rajdhani', sans-serif;font-weight:700;font-size:16px">🔑 Tokens de API</div>
+      <div style="font-family:'Rajdhani', sans-serif;font-weight:700;font-size:16px">🔑 Token Brapi.dev</div>
       <button onclick="document.getElementById('modal-token').classList.remove('open')" style="background:transparent;border:none;color:var(--text3);cursor:pointer;font-size:18px">×</button>
     </div>
 
@@ -2168,6 +2168,8 @@ async function atualizarCotacoes() {
 
 async function buscarDividendos() {
   const brapiToken = localStorage.getItem('brapi-token');
+  if (!brapiToken) { openTokenModal(); return; }
+
   const lista = getAtivos();
   if (!lista.length) { notify('Nenhum ativo cadastrado.', true); return; }
 
@@ -2176,86 +2178,40 @@ async function buscarDividendos() {
   const labels = ['div-label-btn','div-label-prov'].map(id => document.getElementById(id));
   btns.forEach(b => { if (b) b.disabled = true; });
   icons.forEach(ic => { if (ic) ic.classList.add('spinning'); });
-  labels.forEach(lb => { if (lb) lb.textContent = 'Buscando...'; });
+  labels.forEach(lb => { if (lb) lb.textContent = 'Atualizando...'; });
 
-  let cotacoesOk = 0, dividendosOk = 0, erros = [];
-  const proventos = getProventos();
-  const hoje = new Date().toISOString().slice(0,10);
-  const isFii = currentAsset === 'fii';
+  let ok = 0, erros = [];
 
-  // Busca em paralelo para cada ativo
   await Promise.all(lista.map(async f => {
-    // ── 1. Cotação via Brapi (plano free funciona) ──
-    if (brapiToken) {
-      try {
-        const r = await fetch(`https://brapi.dev/api/quote/${f.ticker}?token=${brapiToken}`);
-        const d = await r.json();
-        if (d.results?.[0]?.regularMarketPrice) {
-          f.atual = d.results[0].regularMarketPrice;
-          cotacoesOk++;
-        }
-      } catch(e) {}
-    }
-
-    // ── 2. Dividendo via endpoint público da B3 ──
     try {
-      // A B3 expõe os eventos corporativos (dividendos, rendimentos) publicamente
-      // FIIs: tipo 109 (rendimento) | Ações: tipo 103 (dividendo) / 107 (JCP)
-      const cnpj = ''; // não precisa de CNPJ, só o ticker
-      const url = isFii
-        ? `https://sistemaswebb3-listados.b3.com.br/fundsPage/main/${f.ticker}/events?language=pt-br`
-        : `https://sistemaswebb3-listados.b3.com.br/listedCompaniesPage/main/search/codigos?typeTrade=ON&language=pt-br&page=1&pageSize=1&code=${f.ticker}`;
-
-      if (isFii) {
-        const r = await fetch(url, { headers: { 'Accept': 'application/json' } });
-        const d = await r.json();
-        // Pega o evento mais recente de rendimento
-        const eventos = Array.isArray(d) ? d : (d.results || d.data || []);
-        const rendimentos = eventos.filter(e =>
-          e.typeName?.toLowerCase().includes('rendimento') ||
-          e.typeName?.toLowerCase().includes('dividendo') ||
-          e.typeCode === '109' || e.typeCode === 109
-        );
-        if (rendimentos.length) {
-          rendimentos.sort((a,b) => (b.lastDatePrior||b.paymentDate||'').localeCompare(a.lastDatePrior||a.paymentDate||''));
-          const last = rendimentos[0];
-          const val = parseFloat(last.rate || last.amount || last.value || 0) || 0;
-          if (val > 0) {
-            f.dividendo = parseFloat(val.toFixed(4));
-            const dataDiv = String(last.paymentDate || last.lastDatePrior || hoje).slice(0,10);
-            const mesDiv = dataDiv.slice(0,7);
-            if (!proventos.some(p => p.ticker === f.ticker && p.data?.startsWith(mesDiv)) && f.cotas > 0) {
-              proventos.push({ ticker: f.ticker, data: dataDiv, valor: val, cotas: f.cotas, total: parseFloat((val*f.cotas).toFixed(2)) });
-            }
-            dividendosOk++;
-            return;
-          }
-        }
+      const r = await fetch(`https://brapi.dev/api/quote/${f.ticker}?token=${brapiToken}`);
+      const d = await r.json();
+      if (d.results?.[0]?.regularMarketPrice) {
+        f.atual = d.results[0].regularMarketPrice;
+        ok++;
+      } else {
+        erros.push(f.ticker);
       }
-      erros.push(f.ticker);
-    } catch(e) {
-      erros.push(f.ticker);
-    }
+    } catch(e) { erros.push(f.ticker); }
   }));
 
   btns.forEach(b => { if (b) b.disabled = false; });
   icons.forEach(ic => { if (ic) ic.classList.remove('spinning'); });
   labels.forEach(lb => { if (lb) lb.textContent = 'Atualizar cotações'; });
 
-  if (isFii) {
-    localStorage.setItem('fiis', JSON.stringify(fiis));
-    localStorage.setItem('dividendosFII', JSON.stringify(dividendosFII));
-  } else {
-    localStorage.setItem('acoes', JSON.stringify(acoes));
-    localStorage.setItem('proventosAcoes', JSON.stringify(proventosAcoes));
-  }
-  updateHeader(); renderCarteira(); renderProventos(); renderDashboard();
+  const isFii = currentAsset === 'fii';
+  if (isFii) localStorage.setItem('fiis', JSON.stringify(fiis));
+  else localStorage.setItem('acoes', JSON.stringify(acoes));
+  updateHeader(); renderCarteira(); renderDashboard();
 
-  const partes = [];
-  if (cotacoesOk)   partes.push(`✅ ${cotacoesOk} cotações`);
-  if (dividendosOk) partes.push(`💰 ${dividendosOk} dividendos`);
-  if (erros.length && !dividendosOk) partes.push(`⚠️ Dividendos: registre manualmente`);
-  notify(partes.length ? partes.join(' · ') : '⚠️ Nenhum dado obtido.', !partes.length);
+  if (ok > 0) {
+    notify(erros.length
+      ? `✅ ${ok} cotações atualizadas. Sem dados: ${erros.join(', ')}`
+      : `✅ ${ok} cotações atualizadas!`
+    );
+  } else {
+    notify('⚠️ Nenhuma cotação atualizada. Verifique o token Brapi.', true);
+  }
 }
 
 
