@@ -2213,6 +2213,261 @@ function notify(msg, isErr) {
 }
 
 // ═══════════════════════════════════════════════
+// CHAT
+// ═══════════════════════════════════════════════
+let chatState = null;
+let chatPending = {};
+
+function getTime() { return new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); }
+
+function appendMsg(text, type) {
+  const msgs = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = `msg ${type}`;
+  const safe = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const bubbleCls = type==='user' && currentAsset==='acoes' ? 'bubble acoes-bubble' : 'bubble';
+  div.innerHTML = `<div class="${bubbleCls}" style="white-space:pre-wrap">${safe}</div><div class="msg-time">${getTime()}</div>`;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function appendMsgHTML(html, type) {
+  const msgs = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = `msg ${type}`;
+  div.innerHTML = `<div class="bubble">${html}</div><div class="msg-time">${getTime()}</div>`;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function showTyping() {
+  const msgs = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = 'msg bot';
+  div.id = 'typing-indicator';
+  const cls = currentAsset === 'fii' ? 'fii-td' : 'acoes-td';
+  div.innerHTML = `<div class="bubble"><div class="typing-bubble"><div class="typing-dot ${cls}"></div><div class="typing-dot ${cls}"></div><div class="typing-dot ${cls}"></div></div></div>`;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function hideTyping() { document.getElementById('typing-indicator')?.remove(); }
+
+function sendChip(text) { document.getElementById('chat-input').value = text; sendMessage(); }
+function handleKey(e) { if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }
+function autoResize(el) { el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,100)+'px'; }
+
+function limparChat() {
+  document.getElementById('chat-messages').innerHTML = '';
+  reiniciarChat();
+}
+
+function reiniciarChat() {
+  chatState = null; chatPending = {};
+  const botName = currentAsset==='fii' ? 'FII Assistant' : 'Ações Assistant';
+  const tipAtivo = currentAsset==='fii' ? 'FIIs' : 'ações';
+  appendMsg(`👋 Olá! Sou o ${botName}.
+
+Posso ajudar com:
+• Adicionar ${tipAtivo} à carteira
+• Registrar proventos
+• Consultar sua carteira
+• Analisar seu portfólio
+
+Digite livremente!`, 'bot');
+}
+
+function sendMessage() {
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = ''; input.style.height = 'auto';
+  appendMsg(text, 'user');
+  showTyping();
+  setTimeout(() => {
+    hideTyping();
+    const reply = processChat(text);
+    if (reply && typeof reply === 'object' && reply.__html) appendMsgHTML(reply.__html, 'bot');
+    else appendMsg(reply, 'bot');
+    renderCarteira();
+    renderDashboard();
+  }, 500);
+}
+
+function num(str) { return parseFloat((str||'0').replace(/[^\d,\.]/g,'').replace(',','.')) || 0; }
+
+function extractTicker(text) {
+  const upper = text.toUpperCase();
+  let m = upper.match(/(?:^|[\s\-:,\/])([A-Z]{4}[0-9]{1,2}B?)(?:[\s\-:,\/]|$)/);
+  if (m) return m[1];
+  m = upper.match(/([A-Z]{4}[0-9]{1,2}B?)/);
+  return m ? m[1] : null;
+}
+
+function extractNumbers(text) {
+  const semTicker = text.toUpperCase().replace(/[A-Z]{4}[0-9]{1,2}B?/g,' ');
+  return [...semTicker.matchAll(/\d+(?:[,.]\d+)?/g)]
+    .map(m=>parseFloat(m[0].replace(',','.'))).filter(n=>!isNaN(n)&&n>0);
+}
+
+function processChat(text) {
+  const t = text.toLowerCase();
+  const lista = getAtivos();
+  const proventos = getProventos();
+  const assetName = currentAsset === 'fii' ? 'FII' : 'ação';
+  const assetsName = currentAsset === 'fii' ? 'FIIs' : 'ações';
+  const provName = currentAsset === 'fii' ? 'dividendo' : 'provento';
+
+  // ── FLUXOS GUIADOS ──
+  if (chatState === 'add_ticker') {
+    const ticker = extractTicker(text) || text.toUpperCase().trim();
+    if (!ticker || ticker.length < 4) return `Não reconheci um ticker válido. Tente: ${currentAsset==='fii'?'MXRF11':'VALE3'}`;
+    chatPending.ticker = ticker;
+    chatState = 'add_cotas';
+    return `📌 ${ticker} — quantas cotas?`;
+  }
+  if (chatState === 'add_cotas') {
+    const nums = extractNumbers(text);
+    if (!nums.length) return 'Informe a quantidade (ex: 100).';
+    chatPending.cotas = nums[0];
+    chatState = 'add_pm';
+    return `💰 Qual o preço médio por cota? (R$)`;
+  }
+  if (chatState === 'add_pm') {
+    const nums = extractNumbers(text);
+    if (!nums.length) return 'Informe o preço médio (ex: 97,50).';
+    chatPending.pm = nums[0];
+    chatState = 'add_div';
+    return `📈 Último ${provName} por cota? (0 se não souber)`;
+  }
+  if (chatState === 'add_div') {
+    const nums = extractNumbers(text);
+    chatPending.dividendo = (nums.length && nums[0] < chatPending.pm) ? nums[0] : 0;
+    chatState = null;
+    const ok = addAtivo(chatPending);
+    chatPending = {};
+    return ok ? `✅ ${assetName} adicionado com sucesso!` : '❌ Erro ao adicionar.';
+  }
+  if (chatState === 'prov_ticker') {
+    const ticker = extractTicker(text) || text.toUpperCase().trim();
+    const found = lista.find(f=>f.ticker===ticker);
+    if (!found) return `Não encontrei ${ticker} na carteira.`;
+    chatPending.ticker = ticker;
+    chatState = 'prov_valor';
+    return `💰 Valor do ${provName} por cota de ${ticker}? (R$)`;
+  }
+  if (chatState === 'prov_valor') {
+    const nums = extractNumbers(text);
+    if (!nums.length) return 'Informe o valor por cota (ex: 0,85).';
+    chatPending.valor = nums[0];
+    chatState = null;
+    const ok = addProvento(chatPending);
+    chatPending = {};
+    return ok ? `✅ ${provName} registrado!` : '❌ Erro ao registrar.';
+  }
+
+  // ── INTENTS ──
+  if (t.includes('adicionar') || t.includes('comprei') || t.includes('add')) {
+    const ticker = extractTicker(text);
+    const nums = extractNumbers(text);
+    if (ticker && nums.length >= 2) {
+      const ok = addAtivo({ticker, cotas:nums[0], pm:nums[1], atual:nums[1], dividendo:nums[2]||0, setor:getSetorByTicker(ticker)||getSetores()[0]});
+      return ok ? `✅ ${ticker} adicionado! ${nums[0]} cotas @ R$ ${fmt(nums[1])}` : `❌ Erro ao adicionar ${ticker}.`;
+    }
+    chatState = 'add_ticker';
+    return `Qual o ticker do ${assetName}? (ex: ${currentAsset==='fii'?'MXRF11':'VALE3'})`;
+  }
+
+  if (t.includes('registrar') || t.includes('lançar')) {
+    if (!lista.length) return `Você não tem ${assetsName} cadastrados.`;
+    chatState = 'prov_ticker';
+    return `💰 Registrar ${provName}. Qual o ticker?`;
+  }
+
+  if (t.includes('carteira') || t.includes('posição') || t.includes('tenho')) {
+    if (!lista.length) return `Você ainda não tem ${assetsName}. Digite "adicionar" para começar!`;
+    const s = calcStats();
+    let resp = `📊 Carteira de ${assetsName}:
+
+`;
+    lista.forEach(f => {
+      const val = (f.atual||f.pm)*f.cotas;
+      const dy = (f.atual||f.pm)>0?(f.dividendo||0)/(f.atual||f.pm)*100:0;
+      resp += `• ${f.ticker} — ${f.cotas} cotas · R$ ${fmt(val)} · DY: ${pct(dy)}
+`;
+    });
+    resp += `
+💰 Patrimônio: R$ ${fmt(s.patrimonio)}
+📈 Renda: R$ ${fmt(s.renda)}`;
+    return resp;
+  }
+
+  if (t.includes('patrimônio') || t.includes('total')) {
+    if (!lista.length) return `Nenhum ${assetName} cadastrado ainda.`;
+    const s = calcStats();
+    return `💼 Patrimônio em ${assetsName}:
+
+R$ ${fmt(s.patrimonio)}
+
+💰 Renda mensal: R$ ${fmt(s.renda)}
+📊 Yield médio: ${pct(s.yield_)}
+📦 Ativos: ${lista.length}`;
+  }
+
+  if (t.includes('dividendo') || t.includes('provento') || t.includes('renda') || t.includes('yield')) {
+    if (!lista.length) return `Nenhum ${assetName} cadastrado ainda.`;
+    const sorted = [...lista].sort((a,b)=>{
+      const dyA = (a.atual||a.pm)>0?(a.dividendo||0)/(a.atual||a.pm)*100:0;
+      const dyB = (b.atual||b.pm)>0?(b.dividendo||0)/(b.atual||b.pm)*100:0;
+      return dyB-dyA;
+    });
+    let resp = `📈 ${assetsName} por DY:
+
+`;
+    sorted.forEach((f,i) => {
+      const dy = (f.atual||f.pm)>0?(f.dividendo||0)/(f.atual||f.pm)*100:0;
+      resp += `${i+1}. ${f.ticker} — DY: ${pct(dy)} · R$ ${fmt(f.dividendo||0)}/cota
+`;
+    });
+    return resp;
+  }
+
+  if (t.includes('remover') || t.includes('vendi') || t.includes('deletar')) {
+    const ticker = extractTicker(text);
+    if (ticker && lista.find(f=>f.ticker===ticker)) { removeAtivo(ticker); return `✅ ${ticker} removido.`; }
+    return `Qual ${assetName} deseja remover? Informe o ticker.`;
+  }
+
+  const ticker = extractTicker(text);
+  if (ticker) {
+    const found = lista.find(f=>f.ticker===ticker);
+    if (found) {
+      const val = (found.atual||found.pm)*found.cotas;
+      const res = val - found.pm*found.cotas;
+      const dy = (found.atual||found.pm)>0?(found.dividendo||0)/(found.atual||found.pm)*100:0;
+      const sinal = res>=0?'+':'';
+      return `📊 ${ticker}
+
+Cotas: ${found.cotas}
+P. Médio: R$ ${fmt(found.pm)}
+Atual: R$ ${fmt(found.atual||found.pm)}
+Total: R$ ${fmt(val)}
+Resultado: ${sinal}R$ ${fmt(res)}
+${provName}: R$ ${fmt(found.dividendo||0)}/cota
+DY: ${pct(dy)}`;
+    }
+    return `${ticker} não encontrado. Deseja adicioná-lo?`;
+  }
+
+  return `Não entendi. Tente:
+• "adicionar ${currentAsset==='fii'?'MXRF11':'VALE3'}"
+• "ver carteira"
+• "meu patrimônio"
+• "melhor DY"`;
+}
+
+
+// ═══════════════════════════════════════════════
 // PWA: GERAR ÍCONE DINAMICAMENTE
 // ═══════════════════════════════════════════════
 (function generateIcon() {
