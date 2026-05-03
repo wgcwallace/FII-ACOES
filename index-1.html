@@ -1,0 +1,4425 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="screen-orientation" content="any">
+<title>FII Tracker</title>
+
+<!-- PWA META TAGS -->
+<meta name="application-name" content="FII Tracker">
+<meta name="description" content="Controle seus Fundos de Investimento Imobiliário">
+<meta name="theme-color" content="#00e87a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="FII Tracker">
+<meta name="msapplication-TileColor" content="#1a1a1a">
+
+<!-- PWA MANIFEST (inline) -->
+<link rel="manifest" href="data:application/json;charset=utf-8,%7B%22name%22%3A%22FII%20Tracker%20%E2%80%94%20Controle%20de%20Fundos%20Imobili%C3%A1rios%22%2C%22short_name%22%3A%22FII%20Tracker%22%2C%22description%22%3A%22Controle%20seus%20Fundos%20de%20Investimento%20Imobili%C3%A1rio%22%2C%22start_url%22%3A%22.%2F%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%231a1a1a%22%2C%22theme_color%22%3A%22%2300e87a%22%2C%22categories%22%3A%5B%22finance%22%5D%7D">
+
+<!-- APPLE TOUCH ICON (SVG inline via canvas) -->
+<link rel="apple-touch-icon" id="apple-icon" sizes="180x180" href="">
+<link rel="icon" id="favicon" type="image/png" href="">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg: #1a1a1a;
+    --surface: #242424;
+    --surface2: #2e2e2e;
+    --border: #383838;
+    --accent: #00e87a;
+    --accent2: #00b85f;
+    --accent-dim: rgba(0,232,122,0.10);
+    --accent-glow: rgba(0,232,122,0.20);
+    --text: #e8e8e8;
+    --text2: #9a9a9a;
+    --text3: #555555;
+    --red: #ff4d6d;
+    --gold: #f5c842;
+    --blue: #3fa6ff;
+    --chat-user: #1e3a28;
+    --chat-bot: #2e2e2e;
+    --radius: 14px;
+    --radius-sm: 8px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* NOISE TEXTURE */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.25;
+  }
+
+  /* LAYOUT */
+  /* APP */
+  .app {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 1;
+  }
+
+  /* TOPBAR — altura fixa total para não comprimir o main */
+  .topbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    z-index: 10;
+
+  }
+
+  /* Linha 1: logo + stats + atualizar */
+  .topbar-row1 {
+    display: flex;
+    align-items: center;
+    height: 52px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .logo {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 15px;
+    color: var(--accent);
+    letter-spacing: 2px;
+    padding: 0 16px;
+    border-right: 1px solid var(--border);
+    height: 48px;
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .topbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 0 16px;
+    flex: 1;
+  }
+
+  /* Linha de navegação — destaque */
+  .nav-tabs {
+    display: flex;
+    align-items: center;
+    height: 48px;
+    gap: 4px;
+    padding: 0 12px;
+    background: var(--surface);
+  }
+
+  .nav-btn {
+    height: 38px;
+    padding: 0 18px;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    color: var(--text2);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 14px;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 600;
+    transition: all 0.18s;
+    white-space: nowrap;
+    position: relative;
+  }
+  .nav-btn .nav-icon { font-size: 17px; }
+  .nav-btn .nav-label { font-size: 14px; }
+
+  .nav-btn:hover { background: var(--accent-dim); color: var(--accent); }
+  .nav-btn.active {
+    background: var(--accent-dim);
+    color: var(--accent);
+    box-shadow: inset 0 0 0 1px var(--accent-glow);
+  }
+  .nav-btn.active::after {
+    content: '';
+    position: absolute;
+    bottom: -5px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 28px;
+    height: 2px;
+    background: var(--accent);
+    border-radius: 2px 2px 0 0;
+  }
+
+  /* Faixa do Assistente — fina e discreta */
+  .chat-strip {
+    border-bottom: 1px solid var(--border);
+    background: var(--surface2);
+    padding: 0 16px;
+  }
+  .chat-strip-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 0;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--text3);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    text-align: left;
+    transition: opacity 0.15s;
+  }
+  .chat-strip-btn:hover { opacity: 0.8; }
+  .chat-strip-label {
+    color: #fb923c;
+    font-weight: 700;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .chat-strip-icon { font-size: 15px; }
+  .chat-strip-hint {
+    font-size: 11px;
+    color: var(--text3);
+    font-weight: 400;
+    font-family: 'DM Mono', monospace;
+  }
+
+  /* Botão Assistente destacado */
+  .nav-btn-chat {
+    background: var(--accent-dim);
+    border: 1px solid var(--accent-glow);
+    color: var(--accent) !important;
+    margin-right: 8px;
+    font-weight: 600 !important;
+  }
+  .nav-btn-chat:hover {
+    background: var(--accent) !important;
+    color: #000 !important;
+    border-color: var(--accent) !important;
+  }
+  .nav-btn-chat.active {
+    background: var(--accent) !important;
+    color: #000 !important;
+    border-color: var(--accent) !important;
+    box-shadow: 0 0 0 2px var(--accent-glow) !important;
+  }
+  .nav-btn-chat.active::after { display: none; }
+
+  /* MODE SWITCHER DROPDOWN */
+  .mode-switcher { position:relative; display:flex; align-items:center; }
+  .mode-btn { display:flex; align-items:center; gap:6px; padding:5px 10px; border-radius:8px; border:1px solid var(--border); background:var(--surface2); color:var(--text); cursor:pointer; font-family:'Syne',sans-serif; font-weight:600; font-size:12px; transition:all 0.2s; white-space:nowrap; }
+  .mode-btn:hover { border-color:var(--accent); }
+  .mode-chevron { font-size:9px; color:var(--text3); margin-left:2px; }
+  .mode-dropdown { position:absolute; top:calc(100% + 6px); left:0; background:var(--surface); border:1px solid var(--border); border-radius:10px; min-width:180px; z-index:50; box-shadow:0 8px 32px rgba(0,0,0,0.4); overflow:hidden; display:none; }
+  .mode-dropdown.open { display:block; }
+  .mode-option { display:flex; align-items:center; gap:10px; padding:10px 14px; cursor:pointer; transition:background 0.15s; border-bottom:1px solid var(--border); }
+  .mode-option:last-child { border-bottom:none; }
+  .mode-option:hover, .mode-option.active { background:var(--accent-dim); }
+  .mode-option .opt-icon { font-size:16px; width:22px; text-align:center; }
+  .mode-option .opt-label { font-family:'Syne',sans-serif; font-weight:600; font-size:13px; }
+  .mode-option .opt-sub { font-size:10px; color:var(--text3); font-family:DM Mono,monospace; }
+  .mode-dot { width:7px; height:7px; border-radius:50%; margin-left:auto; flex-shrink:0; }
+  .accent-acoes { --accent:#3fa6ff; --accent-dim:rgba(63,166,255,0.10); --accent-glow:rgba(63,166,255,0.20); }
+  .accent-consolidado { --accent:#f5c842; --accent-dim:rgba(245,200,66,0.10); --accent-glow:rgba(245,200,66,0.20); }
+
+  /* MAIN */
+  .main {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+    min-height: 0;
+    position: relative;
+  }
+
+  /* HEADER (hidden — stats moved to topbar) */
+  .header { display: none; }
+
+  .header-stats {
+    display: flex;
+    gap: 2px;
+    align-items: center;
+  }
+
+  .hstat {
+    text-align: right;
+    padding: 0 4px;
+    border-right: 1px solid var(--border);
+  }
+  .hstat:last-child { border-right: none; }
+
+  .hstat-label {
+    font-size: 7px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    font-family: 'DM Mono', monospace;
+    white-space: nowrap;
+  }
+
+  .hstat-value {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--accent);
+    white-space: nowrap;
+  }
+
+  /* PAGES */
+  .page {
+    display: none;
+    flex-direction: column;
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    overflow: hidden;
+    background: var(--bg);
+  }
+  .page.active {
+    display: flex;
+  }
+
+  /* DASHBOARD — carrossel horizontal */
+  .dashboard-page {
+    display: flex;
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    flex: 1;
+    scrollbar-width: none;
+  }
+  .dashboard-page::-webkit-scrollbar { display: none; }
+
+  .dashboard-slide {
+    min-width: 100%;
+    width: 100%;
+    scroll-snap-align: start;
+    flex-shrink: 0;
+    overflow-y: auto;
+    padding: 12px 16px;
+  }
+
+  .dashboard-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px;
+  }
+
+  /* Indicador de slides */
+  .slide-dots {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    padding: 6px 0 4px;
+    flex-shrink: 0;
+    background: var(--bg);
+  }
+  .slide-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--border);
+    transition: all 0.2s;
+    cursor: pointer;
+  }
+  .slide-dot.active { background: var(--accent); width: 18px; border-radius: 3px; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    transition: border-color 0.2s;
+  }
+
+  /* Card de largura total — sem bordas ou raio lateral */
+  .card-full {
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    border-left: none;
+    border-right: none;
+    border-radius: 0;
+    padding: 14px 0;
+    transition: border-color 0.2s;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .card:hover { border-color: var(--text3); }
+
+  .card-label {
+    font-size: 11px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    font-family: 'DM Mono', monospace;
+    margin-bottom: 8px;
+  }
+
+  .card-value {
+    font-family: 'DM Mono', monospace;
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+  }
+
+  .card-value.green { color: var(--accent); }
+  .card-value.gold { color: var(--gold); }
+  .card-value.blue { color: var(--blue); }
+
+  .card-sub {
+    font-size: 12px;
+    color: var(--text3);
+    margin-top: 4px;
+  }
+
+  .card.span2 { grid-column: span 2; }
+  .card.span3 { grid-column: span 3; }
+
+  /* TABLE */
+  .table-wrap { overflow-x: auto; }
+  #div-fii-table { width: 100%; }
+  #div-fii-table th:nth-child(3),
+  #div-fii-table td:nth-child(3) { text-align: center; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th {
+    text-align: left;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(30,45,34,0.5);
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--accent-dim); }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+
+  .badge-green { background: rgba(0,232,122,0.12); color: var(--accent); }
+  .badge-red { background: rgba(255,77,109,0.12); color: var(--red); }
+  .badge-gold { background: rgba(245,200,66,0.12); color: var(--gold); }
+
+  .btn {
+    padding: 8px 16px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text2);
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    transition: all 0.2s;
+  }
+
+  .btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #000;
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+
+  .btn-primary:hover { background: var(--accent2); border-color: var(--accent2); color: #000; }
+
+  /* CHART CONTAINER */
+  .chart-container { position: relative; height: 160px; }
+
+  /* FORMULÁRIO */
+  .form-page {
+    padding: 16px 20px;
+    overflow-y: auto;
+    flex: 1;
+  }
+
+
+
+  .form-section {
+    max-width: 640px;
+    margin-bottom: 24px;
+  }
+
+  .form-title {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 20px;
+    margin-bottom: 4px;
+  }
+
+  .form-subtitle {
+    color: var(--text3);
+    font-size: 13px;
+    margin-bottom: 24px;
+  }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-group.full { grid-column: span 2; }
+
+  label {
+    font-size: 11px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-family: 'DM Mono', monospace;
+  }
+
+  input, select {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  input:focus, select:focus { border-color: var(--accent); }
+  select option { background: var(--surface2); }
+
+  .divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 16px 0;
+  }
+
+  /* CHAT */
+  .chat-page {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  .chat-header {
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+
+  .chat-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--accent-dim);
+    border: 1px solid var(--accent-glow);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+  }
+
+  .chat-info strong {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .chat-info span {
+    font-size: 12px;
+    color: var(--accent);
+  }
+
+  .online-dot {
+    width: 8px;
+    height: 8px;
+    background: var(--accent);
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 4px;
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .msg {
+    max-width: 75%;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    animation: msgIn 0.2s ease;
+  }
+
+  @keyframes msgIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .msg.user { align-self: flex-end; align-items: flex-end; }
+  .msg.bot { align-self: flex-start; align-items: flex-start; }
+
+  .bubble {
+    padding: 10px 14px;
+    border-radius: 16px;
+    font-size: 14px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+  }
+
+  .msg.user .bubble {
+    background: var(--chat-user);
+    border: 1px solid rgba(0,232,122,0.2);
+    border-bottom-right-radius: 4px;
+  }
+
+  .msg.bot .bubble {
+    background: var(--chat-bot);
+    border: 1px solid var(--border);
+    border-bottom-left-radius: 4px;
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+  }
+
+  .msg-time {
+    font-size: 11px;
+    color: var(--text3);
+    font-family: 'DM Mono', monospace;
+  }
+
+  .chat-input-area {
+    padding: 16px 24px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 12px;
+    align-items: flex-end;
+    flex-shrink: 0;
+    background: var(--surface);
+  }
+
+  .chat-input {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 16px;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    outline: none;
+    resize: none;
+    min-height: 44px;
+    max-height: 120px;
+    line-height: 1.4;
+    transition: border-color 0.2s;
+  }
+
+  .chat-input:focus { border-color: var(--accent); }
+
+  .chat-send {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: var(--accent);
+    border: none;
+    color: #000;
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+
+  .chat-send:hover { background: var(--accent2); transform: scale(1.05); }
+
+  .chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 0 24px 12px;
+  }
+
+  .chip {
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text2);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+
+  .chip:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+
+  /* DIVIDENDOS */
+  .div-list { display: flex; flex-direction: column; gap: 8px; }
+
+  .div-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: var(--surface2);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+  }
+
+  .div-ticker {
+    font-family: 'DM Mono', monospace;
+    font-weight: 500;
+    color: var(--accent);
+    font-size: 14px;
+  }
+
+  .div-date { font-size: 12px; color: var(--text3); font-family: 'DM Mono', monospace; }
+  .div-value { font-family: 'DM Mono', monospace; font-size: 14px; color: var(--gold); }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  /* TYPING */
+  .typing-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    background: var(--text3);
+    border-radius: 50%;
+    animation: typing 1.4s infinite;
+  }
+  .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes typing {
+    0%, 80%, 100% { transform: scale(0.8); opacity: 0.25; }
+    40% { transform: scale(1); opacity: 1; }
+  }
+
+  .typing-bubble {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    padding: 12px 16px;
+  }
+
+  /* MODAL */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(4px);
+    z-index: 100;
+    display: none;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .modal-overlay.open { display: flex; }
+
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 32px;
+    width: 480px;
+    max-width: 90vw;
+    animation: modalIn 0.2s ease;
+  }
+
+  @keyframes modalIn {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  .modal-title {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 20px;
+    margin-bottom: 20px;
+  }
+
+  .modal-actions { display: flex; gap: 12px; margin-top: 24px; justify-content: flex-end; }
+
+  .notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: var(--surface);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-sm);
+    padding: 12px 20px;
+    font-size: 13px;
+    color: var(--accent);
+    z-index: 200;
+    animation: notifIn 0.3s ease;
+    box-shadow: 0 4px 24px rgba(0,232,122,0.1);
+  }
+
+  @keyframes notifIn {
+    from { opacity: 0; transform: translateX(20px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+
+  /* IMPORT ZONE */
+  .import-zone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    background: var(--surface2);
+  }
+  .import-zone:hover, .import-zone.drag { border-color: var(--accent); background: var(--accent-dim); }
+  .import-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .import-icon { font-size: 36px; margin-bottom: 10px; }
+  .import-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 16px; margin-bottom: 4px; }
+  .import-sub { font-size: 12px; color: var(--text3); }
+
+  .steps { display: flex; flex-direction: column; gap: 10px; margin: 16px 0; }
+  .step { display: flex; align-items: flex-start; gap: 12px; }
+  .step-num {
+    width: 24px; height: 24px; border-radius: 50%;
+    background: var(--accent-dim); border: 1px solid var(--accent-glow);
+    color: var(--accent); font-size: 11px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; font-family: 'DM Mono', monospace;
+  }
+  .step-text { font-size: 13px; color: var(--text2); line-height: 1.5; padding-top: 3px; }
+  .step-text strong { color: var(--text); }
+
+  .import-preview {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-top: 16px;
+    display: none;
+  }
+  .import-preview.show { display: block; }
+  .preview-actions {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    background: var(--surface2);
+    z-index: 2;
+  }
+  .preview-scroll {
+    max-height: 260px;
+    overflow-y: auto;
+  }
+  .preview-title { font-size: 12px; color: var(--text3); font-family: 'DM Mono', monospace; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
+  .preview-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .preview-row:last-child { border-bottom: none; }
+  .preview-ticker { font-family: 'DM Mono', monospace; color: var(--accent); font-weight: 500; }
+  .preview-detail { font-size: 12px; color: var(--text3); font-family: 'DM Mono', monospace; }
+
+  .collapsible-header {
+    display: flex; align-items: center; justify-content: space-between;
+    cursor: pointer; user-select: none;
+  }
+  .collapsible-body { overflow: hidden; transition: max-height 0.3s ease; }
+  .chevron { transition: transform 0.3s; font-size: 12px; color: var(--text3); }
+  .chevron.open { transform: rotate(180deg); }
+
+
+  /* MIC BUTTON */
+  .chat-mic {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text2);
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    flex-shrink: 0;
+    position: relative;
+  }
+  .chat-mic:hover { border-color: var(--accent); color: var(--accent); }
+  .chat-mic.recording {
+    background: rgba(255,77,109,0.15);
+    border-color: var(--red);
+    color: var(--red);
+    animation: micPulse 1s infinite;
+  }
+  @keyframes micPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255,77,109,0.4); }
+    50% { box-shadow: 0 0 0 8px rgba(255,77,109,0); }
+  }
+  .mic-ripple {
+    position: absolute;
+    inset: -4px;
+    border-radius: 16px;
+    border: 2px solid var(--red);
+    animation: ripple 1s infinite;
+    pointer-events: none;
+  }
+  @keyframes ripple {
+    0% { transform: scale(1); opacity: 0.6; }
+    100% { transform: scale(1.4); opacity: 0; }
+  }
+  .voice-hint {
+    position: absolute;
+    bottom: 100%;
+    right: 0;
+    margin-bottom: 8px;
+    background: var(--surface);
+    border: 1px solid var(--red);
+    border-radius: 10px;
+    padding: 8px 12px;
+    font-size: 12px;
+    color: var(--red);
+    white-space: nowrap;
+    pointer-events: none;
+    font-family: 'DM Mono', monospace;
+  }
+
+
+  /* CHAT CHOICE CARDS */
+  .chat-choices { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+  .choice-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 14px;
+    cursor: pointer;
+    transition: all 0.18s;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .choice-card:hover {
+    border-color: var(--accent);
+    background: var(--accent-dim);
+    transform: translateX(3px);
+  }
+  .choice-icon {
+    font-size: 22px;
+    flex-shrink: 0;
+    width: 36px;
+    text-align: center;
+  }
+  .choice-body { flex: 1; }
+  .choice-title {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--text);
+    margin-bottom: 2px;
+  }
+  .choice-desc {
+    font-size: 11px;
+    color: var(--text3);
+    line-height: 1.4;
+    font-family: 'DM Mono', monospace;
+  }
+  .choice-arrow { color: var(--text3); font-size: 14px; flex-shrink: 0; }
+  .choice-card:hover .choice-arrow { color: var(--accent); }
+  .chat-example {
+    background: var(--surface2);
+    border-left: 2px solid var(--accent);
+    border-radius: 0 6px 6px 0;
+    padding: 6px 10px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--text2);
+    margin-top: 4px;
+    cursor: pointer;
+  }
+  .chat-example:hover { color: var(--accent); }
+
+
+  /* RANKING CARDS */
+  .ranking-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 0;
+  }
+  .rank-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px;
+  }
+  .rank-title {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .rank-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(56,56,56,0.5);
+    gap: 10px;
+  }
+  .rank-row:last-child { border-bottom: none; }
+  .rank-pos {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--text3);
+    width: 16px;
+    flex-shrink: 0;
+  }
+  .rank-ticker {
+    font-family: 'DM Mono', monospace;
+    font-weight: 500;
+    color: var(--text);
+    font-size: 13px;
+    flex: 1;
+  }
+  .rank-setor-badge {
+    font-size: 10px;
+    color: var(--text3);
+    font-family: 'DM Mono', monospace;
+    background: var(--surface2);
+    padding: 2px 6px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+  .rank-pct {
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    font-weight: 600;
+    flex-shrink: 0;
+    min-width: 64px;
+    text-align: right;
+  }
+  .rank-bar-wrap {
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    margin-top: 4px;
+    width: 100%;
+  }
+  .rank-bar { height: 3px; border-radius: 2px; }
+
+  /* SETOR BADGE in table */
+  .setor-pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 10px;
+    font-family: 'DM Mono', monospace;
+    border: 1px solid var(--border);
+    color: var(--text3);
+    white-space: nowrap;
+  }
+  .setor-Logística         { border-color:#3fa6ff33; color:#3fa6ff; background:rgba(63,166,255,0.06); }
+  .setor-Shoppings         { border-color:#f5c84233; color:#f5c842; background:rgba(245,200,66,0.06); }
+  .setor-Lajes-Corporativas{ border-color:#a78bfa33; color:#a78bfa; background:rgba(167,139,250,0.06); }
+  .setor-Papel             { border-color:#00e87a33; color:#00e87a; background:rgba(0,232,122,0.06); }
+  .setor-Hospital          { border-color:#ff4d6d33; color:#ff4d6d; background:rgba(255,77,109,0.06); }
+  .setor-Hotelaria         { border-color:#fb923c33; color:#fb923c; background:rgba(251,146,60,0.06); }
+  .setor-Agro              { border-color:#34d39933; color:#34d399; background:rgba(52,211,153,0.06); }
+  .setor-FoF               { border-color:#60a5fa33; color:#60a5fa; background:rgba(96,165,250,0.06); }
+  .setor-Híbrido           { border-color:#9a9a9a33; color:#9a9a9a; background:rgba(143,168,152,0.06); }
+  .setor-Educacional       { border-color:#f472b633; color:#f472b6; background:rgba(244,114,182,0.06); }
+  .setor-Financeiro        { border-color:#facc1533; color:#facc15; background:rgba(250,204,21,0.06); }
+  .setor-Residencial       { border-color:#4ade8033; color:#4ade80; background:rgba(74,222,128,0.06); }
+
+
+  /* COTAÇÃO UPDATE */
+  .update-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    padding: 5px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text2);
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    transition: all 0.2s;
+    white-space: nowrap;
+    min-width: 52px;
+  }
+  .upd-icon { font-size: 16px; line-height: 1; }
+  #upd-label { font-size: 9px; font-weight: 500; line-height: 1.2; white-space: nowrap; }
+  .update-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .update-btn.loading { border-color: var(--accent); color: var(--accent); pointer-events: none; }
+  .update-btn.loading .upd-icon { animation: spin 1s linear infinite; display: inline-block; }
+  .update-btn.success { border-color: var(--accent); color: var(--accent); }
+  .update-btn.error { border-color: var(--red); color: var(--red); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .div-btn-icon { display:inline-block; }
+  .div-btn-icon.spinning { animation: spin 0.8s linear infinite; }
+  .upd-time { font-size: 9px; color: var(--text3); font-family: 'DM Mono', monospace; text-align:center; }
+
+  /* TOKEN MODAL */
+  .token-modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px;
+    width: 460px;
+    max-width: 92vw;
+    animation: modalIn 0.2s ease;
+  }
+  .token-modal .token-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 16px 0;
+    background: var(--surface2);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .token-step {
+    font-size: 13px;
+    color: var(--text2);
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    line-height: 1.5;
+  }
+  .token-step strong { color: var(--text); }
+
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- TOPBAR -->
+  <nav class="topbar">
+    <!-- Linha 1: logo + stats + atualizar -->
+    <div class="topbar-row1">
+      <div class="logo">FII</div>
+      <div class="mode-switcher" style="padding:0 10px;border-right:1px solid var(--border);height:52px;display:flex;align-items:center">
+        <button class="mode-btn" id="mode-btn" onclick="toggleModeDropdown()">
+          <span id="mode-icon">🏢</span>
+          <span id="mode-label">FIIs</span>
+          <span class="mode-chevron">▼</span>
+        </button>
+        <div class="mode-dropdown" id="mode-dropdown">
+          <div class="mode-option active" id="opt-fiis" onclick="setMode('fiis')">
+            <span class="opt-icon">🏢</span>
+            <div><div class="opt-label">FIIs</div><div class="opt-sub">Fundos Imobiliários</div></div>
+            <div class="mode-dot" style="background:#00e87a"></div>
+          </div>
+          <div class="mode-option" id="opt-acoes" onclick="setMode('acoes')">
+            <span class="opt-icon">📈</span>
+            <div><div class="opt-label">Ações</div><div class="opt-sub">Renda variável</div></div>
+            <div class="mode-dot" style="background:#3fa6ff"></div>
+          </div>
+          <div class="mode-option" id="opt-consolidado" onclick="setMode('consolidado')">
+            <span class="opt-icon">🌐</span>
+            <div><div class="opt-label">Consolidado</div><div class="opt-sub">Visão geral</div></div>
+            <div class="mode-dot" style="background:#f5c842"></div>
+          </div>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <div class="header-stats">
+          <div class="hstat">
+            <div class="hstat-label">Patrimônio</div>
+            <div class="hstat-value" id="h-patrimonio">R$ 0,00</div>
+          </div>
+          <div class="hstat">
+            <div class="hstat-label">Renda/mês</div>
+            <div class="hstat-value" id="h-renda">R$ 0,00</div>
+          </div>
+          <div class="hstat">
+            <div class="hstat-label">Yield médio</div>
+            <div class="hstat-value" id="h-yield">0,00%</div>
+          </div>
+        </div>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+          <div>
+            <button class="update-btn" id="btn-update-cotacoes" onclick="atualizarCotacoes()">
+              <span class="upd-icon">🔄</span>
+              <span id="upd-label">Atualizar</span>
+              <span class="upd-time" id="upd-time"></span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Linha 2: botão assistente em destaque -->
+    <div class="chat-strip">
+      <button class="chat-strip-btn" onclick="showPage('chat')">
+        <span class="chat-strip-label">
+          <span class="chat-strip-icon">💬</span>
+          <span>Assistente</span>
+        </span>
+        <span class="chat-strip-hint">· adicionar FII · dividendos · consultas</span>
+      </button>
+    </div>
+    <!-- Linha 3: navegação -->
+    <div class="nav-tabs">
+      <button class="nav-btn active" onclick="showPage('dashboard')">
+        <span class="nav-icon">📊</span><span class="nav-label">Dashboard</span>
+      </button>
+      <button class="nav-btn" onclick="showPage('carteira')">
+        <span class="nav-icon">🏢</span><span class="nav-label">Carteira</span>
+      </button>
+      <button class="nav-btn" onclick="showPage('dividendos')">
+        <span class="nav-icon">💰</span><span class="nav-label">Dividendos</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- DASHBOARD -->
+    <div class="page active" id="page-dashboard">
+      <div class="dashboard-page" id="dashboard-slides" onscroll="updateDots()">
+
+        <!-- SLIDE 1: Métricas + gráficos -->
+        <div class="dashboard-slide">
+          <div class="dashboard-grid">
+            <div class="card">
+              <div class="card-label">Patrimônio Total</div>
+              <div style="height:15px"></div>
+              <div class="card-value green" id="d-patrimonio" style="font-size:22px">R$ 0,00</div>
+              <div class="card-sub">soma de todos os FIIs</div>
+            </div>
+            <div class="card">
+              <div class="card-label">Dividendos no Mês</div>
+              <div class="card-value gold" id="d-dividendos" style="font-size:22px">R$ 0,00</div>
+              <div class="card-sub">provento acumulado</div>
+            </div>
+            <div class="card">
+              <div class="card-label">Yield Médio (DY)</div>
+              <div style="height:15px"></div>
+              <div class="card-value blue" id="d-yield">0,00%</div>
+              <div class="card-sub">dividend yield carteira</div>
+            </div>
+
+        <div class="card span2">
+          <div class="section-header">
+            <div class="card-label" style="margin:0">Evolução do Patrimônio</div>
+          </div>
+          <div class="chart-container">
+            <canvas id="chart-patrimonio"></canvas>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-label">Alocação por Setor</div>
+          <div class="chart-container">
+            <canvas id="chart-setor"></canvas>
+          </div>
+        </div>
+
+        <div class="card span3">
+          <div class="section-header">
+            <div class="card-label" style="margin:0">Resumo da Carteira</div>
+            <button class="btn btn-primary" onclick="showPage('carteira')">+ Adicionar FII</button>
+          </div>
+          <div class="table-wrap">
+            <table id="dash-table">
+              <thead>
+                <tr>
+                  <th>Ticker</th>
+                  <th>Setor</th>
+                  <th>Cotas</th>
+                  <th>Preço Médio</th>
+                  <th>Valor Atual</th>
+                  <th>Dividend</th>
+                  <th>DY</th>
+                  <th>Resultado</th>
+                </tr>
+              </thead>
+              <tbody id="dash-tbody">
+                <tr>
+                  <td colspan="8" style="text-align:center;color:var(--text3);padding:32px">
+                    Nenhum FII cadastrado. Adicione via formulário ou chat ↗
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- SETOR CHART FULL WIDTH -->
+        <div class="card span3">
+          <div class="card-label" style="margin-bottom:16px">Alocação por Setor — Detalhado</div>
+          <div style="height:200px">
+            <canvas id="chart-setor-bar"></canvas>
+          </div>
+        </div>
+
+        <!-- RANKING: TOP 5 + BOTTOM 5 -->
+        <div class="card span3">
+          <div class="card-label" style="margin-bottom:16px">🏆 Ranking de Valorização</div>
+          <div class="ranking-grid">
+            <div class="rank-card">
+              <div class="rank-title"><span style="color:var(--accent)">▲</span> Top 5 — Mais Valorizados</div>
+              <div id="rank-top"></div>
+            </div>
+            <div class="rank-card">
+              <div class="rank-title"><span style="color:var(--red)">▼</span> Bottom 5 — Mais Desvalorizados</div>
+              <div id="rank-bot"></div>
+            </div>
+          </div>
+        </div>
+
+        </div><!-- end slide 1 -->
+
+        <!-- SLIDE 2: Tabela + Ranking -->
+        <div class="dashboard-slide">
+          <div class="dashboard-grid">
+
+            <div class="card span3">
+              <div class="section-header">
+                <div class="card-label" style="margin:0">Resumo da Carteira</div>
+                <button class="btn btn-primary" onclick="showPage('carteira')">+ Adicionar FII</button>
+              </div>
+              <div class="table-wrap">
+                <table id="dash-table-2">
+                  <thead>
+                    <tr>
+                      <th>Ticker</th><th>Setor</th><th>Cotas</th>
+                      <th>Preço Médio</th><th>Valor Atual</th>
+                      <th>Dividend</th><th>DY</th><th>Resultado</th>
+                    </tr>
+                  </thead>
+                  <tbody id="dash-tbody-2">
+                    <tr><td colspan="8" style="text-align:center;color:var(--text3);padding:24px">
+                      Nenhum FII cadastrado.
+                    </td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+
+
+          </div>
+        </div><!-- end slide 2 -->
+
+      </div><!-- end dashboard-page -->
+
+      <!-- Dots indicadores -->
+      <div class="slide-dots">
+        <div class="slide-dot active" onclick="goToSlide(0)"></div>
+        <div class="slide-dot" onclick="goToSlide(1)"></div>
+      </div>
+
+    </div><!-- end page-dashboard -->
+    </div><!-- CLOSE page-dashboard outer -->
+
+    <!-- CARTEIRA / FORMULÁRIO -->
+    <div class="page" id="page-carteira">
+      <div class="form-page">
+        <div class="form-section">
+          <div class="collapsible-header" onclick="toggleCollapsible('b3-steps')">
+            <div>
+              <div class="form-title">📥 Importar da B3</div>
+              <div class="form-subtitle">Importe sua posição direto do extrato da B3</div>
+            </div>
+            <span class="chevron" id="chevron-b3-steps">▼</span>
+          </div>
+          <div class="collapsible-body" id="b3-steps" style="max-height:0;overflow:hidden">
+            <div style="padding-top:16px">
+              <div class="steps">
+                <div class="step">
+                  <div class="step-num">1</div>
+                  <div class="step-text">Acesse <strong>investidor.b3.com.br</strong> e faça login com sua conta gov.br</div>
+                </div>
+                <div class="step">
+                  <div class="step-num">2</div>
+                  <div class="step-text">Vá em <strong>Extratos e Informativos → Posição em Ativos</strong></div>
+                </div>
+                <div class="step">
+                  <div class="step-num">3</div>
+                  <div class="step-text">Filtre por <strong>Fundos de Investimento Imobiliário</strong></div>
+                </div>
+                <div class="step">
+                  <div class="step-num">4</div>
+                  <div class="step-text">Clique em <strong>Exportar → Excel ou CSV</strong> e salve o arquivo</div>
+                </div>
+                <div class="step">
+                  <div class="step-num">5</div>
+                  <div class="step-text">Arraste ou selecione o arquivo abaixo 👇</div>
+                </div>
+              </div>
+
+              <div class="import-zone" id="import-zone"
+                ondragover="event.preventDefault();this.classList.add('drag')"
+                ondragleave="this.classList.remove('drag')"
+                ondrop="handleDrop(event)">
+                <input type="file" accept=".xlsx,.xls,.csv" onchange="handleFileImport(this.files[0])">
+                <div class="import-icon">📂</div>
+                <div class="import-title">Arraste o arquivo aqui</div>
+                <div class="import-sub">ou clique para selecionar · XLS, XLSX ou CSV</div>
+              </div>
+
+              <div class="import-preview" id="import-preview">
+                <div class="preview-actions">
+                  <button class="btn btn-primary" onclick="confirmImport()">✅ Importar tudo</button>
+                  <button class="btn" onclick="cancelImport()">Cancelar</button>
+                  <span id="preview-count" style="font-size:12px;color:var(--text3);font-family:DM Mono,monospace;align-self:center;margin-left:4px"></span>
+                </div>
+                <div class="preview-title">📋 Prévia — FIIs encontrados</div>
+                <div class="preview-scroll" id="preview-list"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <hr class="divider">
+
+        <div class="form-section">
+          <div class="form-title">Adicionar FII</div>
+          <div class="form-subtitle">Cadastre um novo fundo na sua carteira</div>
+
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Ticker</label>
+              <input type="text" id="f-ticker" placeholder="HGLG11" maxlength="7" style="text-transform:uppercase">
+            </div>
+            <div class="form-group">
+              <label>Setor</label>
+              <select id="f-setor">
+                <option value="">Auto-detectar pelo ticker</option>
+                <option>Agro</option>
+                <option>Educacional</option>
+                <option>Financeiro</option>
+                <option>FoF</option>
+                <option>Hotelaria</option>
+                <option>Hospital</option>
+                <option>Híbrido</option>
+                <option>Lajes Corporativas</option>
+                <option>Logística</option>
+                <option>Papel</option>
+                <option>Residencial</option>
+                <option>Shoppings</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Quantidade de Cotas</label>
+              <input type="number" id="f-cotas" placeholder="100" min="1">
+            </div>
+            <div class="form-group">
+              <label>Preço Médio (R$)</label>
+              <input type="number" id="f-preco" placeholder="110.50" step="0.01">
+            </div>
+            <div class="form-group">
+              <label>Último Dividendo (R$/cota)</label>
+              <input type="number" id="f-dividendo" placeholder="0.85" step="0.01">
+            </div>
+          </div>
+
+          <button class="btn btn-primary" onclick="addFII()">Adicionar à Carteira</button>
+        </div>
+
+        <hr class="divider">
+
+        <div class="form-section">
+          <div class="section-header">
+            <div>
+              <div class="form-title">Minha Carteira</div>
+              <div class="form-subtitle">FIIs cadastrados</div>
+            </div>
+          </div>
+          <!-- Filtros da carteira -->
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center">
+            <input id="cart-filter-ticker" type="text" placeholder="🔍 Ticker..."
+              style="width:100px;font-size:12px;padding:5px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:DM Mono,monospace"
+              oninput="renderCarteira()">
+            <select id="cart-filter-setor"
+              style="font-size:12px;padding:5px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Sans',sans-serif"
+              onchange="renderCarteira()">
+              <option value="">Todos os setores</option>
+              <option>Agro</option><option>Educacional</option><option>Financeiro</option>
+              <option>FoF</option><option>Hotelaria</option><option>Hospital</option>
+              <option>Híbrido</option><option>Lajes Corporativas</option><option>Logística</option>
+              <option>Papel</option><option>Residencial</option><option>Shoppings</option>
+            </select>
+            <select id="cart-filter-result"
+              style="font-size:12px;padding:5px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Sans',sans-serif"
+              onchange="renderCarteira()">
+              <option value="">Todos os resultados</option>
+              <option value="pos">✅ Positivos</option>
+              <option value="neg">❌ Negativos</option>
+            </select>
+            <select id="cart-sort"
+              style="font-size:12px;padding:5px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Sans',sans-serif"
+              onchange="renderCarteira()">
+              <option value="">Ordenar: padrão</option>
+              <option value="ticker">Ticker A→Z</option>
+              <option value="cotas">Mais cotas</option>
+              <option value="valor">Maior valor</option>
+              <option value="result_desc">Melhor resultado</option>
+              <option value="result_asc">Pior resultado</option>
+              <option value="dy">Maior DY</option>
+            </select>
+            <button class="btn" style="font-size:11px;padding:5px 10px;color:var(--text3)" onclick="limparFiltrosCarteira()">✕ Limpar</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Ticker</th>
+                  <th>Setor</th>
+                  <th>Cotas</th>
+                  <th>PM</th>
+                  <th>Atual</th>
+                  <th>Resultado</th>
+                  <th>Ação</th>
+                </tr>
+              </thead>
+              <tbody id="cart-tbody">
+                <tr>
+                  <td colspan="7" style="text-align:center;color:var(--text3);padding:32px">
+                    Nenhum FII cadastrado ainda.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <hr class="divider">
+
+        <div class="form-section">
+          <div class="form-title">Registrar Dividendo</div>
+          <div class="form-subtitle">Registre um provento recebido</div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Ticker</label>
+              <select id="div-ticker">
+                <option value="">Selecione FII...</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Data de Pagamento</label>
+              <input type="date" id="div-data">
+            </div>
+            <div class="form-group">
+              <label>Valor por Cota (R$)</label>
+              <input type="number" id="div-valor" placeholder="0.85" step="0.001">
+            </div>
+            <div class="form-group" style="justify-content:flex-end">
+              <label>&nbsp;</label>
+              <button class="btn btn-primary" onclick="addDividendo()">Registrar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DIVIDENDOS -->
+    <div class="page" id="page-dividendos">
+      <div style="overflow-y:auto;height:100%;padding:12px 16px;box-sizing:border-box">
+        <div class="dashboard-grid" style="margin-bottom:12px">
+
+          <!-- 3 cards de resumo -->
+          <div class="card">
+            <div class="card-label">Renda Mensal Est.</div>
+            <div class="card-value green" id="div-renda-mensal" style="font-size:22px">R$ 0,00</div>
+            <div class="card-sub">último div × cotas</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Total Acumulado</div>
+            <div class="card-value gold" id="div-total" style="font-size:22px">R$ 0,00</div>
+            <div class="card-sub">histórico registrado</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Proventos</div>
+            <div class="card-value blue" id="div-count" style="font-size:22px">0</div>
+            <div class="card-sub">registros</div>
+          </div>
+
+          <!-- Tabela dividendos — span 3 igual ao Resumo da Carteira -->
+          <div class="card span3">
+            <div class="section-header">
+              <div class="card-label" style="margin:0">Último Dividendo por FII</div>
+              <button class="btn" id="btn-buscar-div" style="font-size:11px;padding:4px 10px" onclick="buscarDividendosBrapi()">
+                <span class="div-btn-icon">🔄</span>
+                <span class="div-btn-label">Buscar dividendos</span>
+              </button>
+            </div>
+            <div class="table-wrap">
+              <table id="div-fii-table">
+                <thead>
+                  <tr>
+                    <th>Ticker</th>
+                    <th>Setor</th>
+                    <th>Cotas</th>
+                    <th>Último Div.</th>
+                    <th>Renda/mês</th>
+                    <th>Yield</th>
+                  </tr>
+                </thead>
+                <tbody id="div-fii-tbody">
+                  <tr><td colspan="6" style="text-align:center;color:var(--text3);padding:24px">
+                    Clique em "Buscar dividendos" para atualizar.
+                  </td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Gráfico mensal — span 3 -->
+          <div class="card span3">
+            <div class="card-label" style="margin-bottom:12px">Renda Mensal (R$)</div>
+            <div class="chart-container">
+              <canvas id="chart-dividendos"></canvas>
+            </div>
+          </div>
+
+          <!-- Histórico — span 3 -->
+          <div class="card span3">
+            <div class="card-label" style="margin-bottom:12px">Histórico de Proventos</div>
+            <div class="div-list" id="div-list">
+              <div style="text-align:center;color:var(--text3);padding:24px">Nenhum dividendo registrado ainda.</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+    <!-- CHAT -->
+    <div class="page" id="page-chat">
+      <div class="chat-page">
+        <div class="chat-header">
+          <div class="chat-avatar">🤖</div>
+          <div class="chat-info">
+            <strong>FII Assistant</strong>
+            <span><span class="online-dot"></span>online</span>
+          </div>
+          <div style="display:flex;gap:8px;margin-left:auto">
+            <button class="btn" id="btn-cancelar-fluxo" onclick="cancelarFluxo()"
+              style="display:none;font-size:12px;padding:5px 12px;color:var(--gold);border-color:var(--gold)">
+              ✕ Cancelar
+            </button>
+            <button class="btn" onclick="limparChat()"
+              style="font-size:12px;padding:5px 12px" title="Limpar conversa">
+              🗑️ Limpar
+            </button>
+            <button class="btn" onclick="reiniciarChat()"
+              style="font-size:12px;padding:5px 12px" title="Reiniciar conversa">
+              🔄 Reiniciar
+            </button>
+          </div>
+        </div>
+
+        <div class="chat-messages" id="chat-messages">
+          <div class="msg bot">
+            <div class="bubble">👋 Olá! Sou o assistente de FIIs.
+
+Posso te ajudar a:
+• Adicionar FIIs à carteira
+• Registrar dividendos recebidos
+• Consultar sua carteira e rendimentos
+• Analisar seu portfólio
+
+Use os atalhos abaixo ou digite livremente!</div>
+            <div class="msg-time">agora</div>
+          </div>
+        </div>
+
+        <div class="chip-row">
+          <div class="chip" onclick="sendChip('Qual minha carteira atual?')">📊 Ver carteira</div>
+          <div class="chip" onclick="sendChip('Adicionar FII')">➕ Adicionar FII</div>
+          <div class="chip" onclick="sendChip('Registrar dividendo')">💰 Registrar dividendo</div>
+          <div class="chip" onclick="sendChip('Qual meu patrimônio total?')">🏦 Patrimônio</div>
+          <div class="chip" onclick="sendChip('Qual FII paga mais dividendos?')">📈 Melhor DY</div>
+          <div class="chip" onclick="sendChip('Total de dividendos recebidos?')">💵 Total recebido</div>
+        </div>
+
+        <div class="chat-input-area">
+          <textarea class="chat-input" id="chat-input" placeholder="Digite ou use o microfone..." rows="1"
+            onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+          <button class="chat-mic" id="mic-btn" onclick="toggleVoice()" title="Falar mensagem">🎙️</button>
+          <button class="chat-send" onclick="sendMessage()">➤</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ AÇÕES DASHBOARD ═══ -->
+    <div class="page" id="page-acoes-dashboard">
+      <div style="overflow-y:auto;height:100%;padding:12px 16px">
+        <div class="dashboard-grid">
+          <div class="card">
+            <div class="card-label">Patrimônio em Ações</div>
+            <div class="card-value" style="color:var(--accent)" id="ad-patrimonio">R$ 0,00</div>
+            <div class="card-sub">valor de mercado atual</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Proventos/mês</div>
+            <div class="card-value gold" id="ad-proventos">R$ 0,00</div>
+            <div class="card-sub">dividendos + JCP</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Resultado Total</div>
+            <div class="card-value" id="ad-resultado">R$ 0,00</div>
+            <div class="card-sub">lucro / prejuízo</div>
+          </div>
+          <div class="card span2">
+            <div class="card-label" style="margin-bottom:16px">Evolução do Patrimônio</div>
+            <div class="chart-container"><canvas id="chart-acoes-pat"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-label">Alocação por Setor</div>
+            <div class="chart-container"><canvas id="chart-acoes-setor"></canvas></div>
+          </div>
+          <div class="card span3">
+            <div class="section-header">
+              <div class="card-label" style="margin:0">Carteira de Ações</div>
+              <button class="btn btn-primary" onclick="showPage('acoes-carteira')">+ Adicionar Ação</button>
+            </div>
+            <div class="table-wrap">
+              <table><thead><tr>
+                <th>Ticker</th><th>Setor</th><th>Qtd</th>
+                <th>PM</th><th>Atual</th><th>Provento/ação</th><th>DY</th><th>Resultado</th>
+              </tr></thead>
+              <tbody id="acoes-dash-tbody">
+                <tr><td colspan="8" style="text-align:center;color:var(--text3);padding:32px">Nenhuma ação cadastrada.</td></tr>
+              </tbody></table>
+            </div>
+          </div>
+          <div class="card span3">
+            <div class="card-label" style="margin-bottom:16px">🏆 Ranking de Valorização — Ações</div>
+            <div class="ranking-grid">
+              <div class="rank-card">
+                <div class="rank-title"><span style="color:var(--accent)">▲</span> Top 5 Valorizadas</div>
+                <div id="acoes-rank-top"></div>
+              </div>
+              <div class="rank-card">
+                <div class="rank-title"><span style="color:var(--red)">▼</span> Bottom 5 Desvalorizadas</div>
+                <div id="acoes-rank-bot"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ AÇÕES CARTEIRA ═══ -->
+    <div class="page" id="page-acoes-carteira">
+      <div class="form-page">
+        <div class="form-section">
+          <div class="form-title">Adicionar Ação</div>
+          <div class="form-subtitle">Cadastre uma ação na sua carteira</div>
+          <div class="form-grid">
+            <div class="form-group"><label>Ticker</label><input type="text" id="ac-ticker" placeholder="PETR4" maxlength="7" style="text-transform:uppercase"></div>
+            <div class="form-group"><label>Setor</label>
+              <select id="ac-setor">
+                <option value="">Selecione...</option>
+                <option>Bancos</option><option>Energia Elétrica</option><option>Petróleo e Gás</option>
+                <option>Mineração</option><option>Varejo</option><option>Tecnologia</option>
+                <option>Saúde</option><option>Telecomunicações</option><option>Agronegócio</option>
+                <option>Saneamento</option><option>Transporte</option><option>Indústria</option><option>Outros</option>
+              </select>
+            </div>
+            <div class="form-group"><label>Quantidade</label><input type="number" id="ac-cotas" placeholder="100" min="1"></div>
+            <div class="form-group"><label>Preço Médio (R$)</label><input type="number" id="ac-pm" placeholder="28.50" step="0.01"></div>
+            <div class="form-group"><label>Preço Atual (R$)</label><input type="number" id="ac-atual" placeholder="31.00" step="0.01"></div>
+            <div class="form-group"><label>Provento/ação (R$)</label><input type="number" id="ac-div" placeholder="0.45" step="0.01"></div>
+          </div>
+          <button class="btn btn-primary" onclick="addAcao()">Adicionar à Carteira</button>
+        </div>
+        <hr class="divider">
+        <div class="form-section">
+          <div class="section-header"><div><div class="form-title">Minha Carteira de Ações</div></div></div>
+          <div class="table-wrap">
+            <table><thead><tr>
+              <th>Ticker</th><th>Setor</th><th>Qtd</th><th>PM</th><th>Atual</th><th>Resultado</th><th>Ação</th>
+            </tr></thead>
+            <tbody id="acoes-cart-tbody">
+              <tr><td colspan="7" style="text-align:center;color:var(--text3);padding:32px">Nenhuma ação cadastrada ainda.</td></tr>
+            </tbody></table>
+          </div>
+        </div>
+        <hr class="divider">
+        <div class="form-section">
+          <div class="form-title">Registrar Provento (Div/JCP)</div>
+          <div class="form-grid">
+            <div class="form-group"><label>Ticker</label><select id="ac-div-ticker"><option value="">Selecione ação...</option></select></div>
+            <div class="form-group"><label>Tipo</label><select id="ac-div-tipo"><option value="Dividendo">Dividendo</option><option value="JCP">JCP</option></select></div>
+            <div class="form-group"><label>Data</label><input type="date" id="ac-div-data"></div>
+            <div class="form-group"><label>Valor por Ação (R$)</label><input type="number" id="ac-div-valor" placeholder="0.45" step="0.001"></div>
+          </div>
+          <button class="btn btn-primary" onclick="addProventoAcao()">Registrar Provento</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ CONSOLIDADO ═══ -->
+    <div class="page" id="page-consolidado">
+      <div style="overflow-y:auto;height:100%;padding:12px 16px">
+        <div class="dashboard-grid">
+          <div class="card">
+            <div class="card-label">Patrimônio Total</div>
+            <div class="card-value" style="color:var(--accent)" id="cons-patrimonio">R$ 0,00</div>
+            <div class="card-sub">FIIs + Ações</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Renda Total/mês</div>
+            <div class="card-value green" id="cons-renda">R$ 0,00</div>
+            <div class="card-sub">dividendos + proventos</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Resultado Total</div>
+            <div class="card-value" id="cons-resultado">R$ 0,00</div>
+            <div class="card-sub">lucro / prejuízo geral</div>
+          </div>
+          <div class="card span3">
+            <div class="card-label" style="margin-bottom:16px">FIIs vs Ações — Alocação</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:center">
+              <div style="height:220px"><canvas id="chart-cons-split"></canvas></div>
+              <div id="cons-split-legend" style="display:flex;flex-direction:column;gap:12px"></div>
+            </div>
+          </div>
+          <div class="card span3">
+            <div class="card-label" style="margin-bottom:16px">Alocação por Setor — Carteira Completa</div>
+            <div style="height:200px"><canvas id="chart-cons-setor"></canvas></div>
+          </div>
+          <div class="card span2">
+            <div class="card-label" style="margin-bottom:16px">Top Posições por Valor</div>
+            <div id="cons-top-posicoes"></div>
+          </div>
+          <div class="card">
+            <div class="card-label" style="margin-bottom:16px">Resumo</div>
+            <div id="cons-resumo" style="display:flex;flex-direction:column;gap:10px"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- MODAL EDITAR -->
+<div class="modal-overlay" id="modal-edit" onclick="handleModalClick(event)">
+  <div class="modal" style="width:520px">
+    <input type="hidden" id="edit-ticker-key">
+
+    <!-- Header -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <div>
+        <div style="font-size:11px;color:var(--text3);font-family:DM Mono,monospace;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Editando FII</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span id="edit-ticker-display" style="font-family:'Syne',sans-serif;font-weight:800;font-size:22px;color:var(--accent)"></span>
+          <span id="edit-setor-display" class="setor-pill"></span>
+        </div>
+      </div>
+      <button onclick="closeModal()" style="background:transparent;border:none;color:var(--text3);cursor:pointer;font-size:22px;line-height:1">×</button>
+    </div>
+
+    <!-- Sumário atual -->
+    <div id="edit-summary" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:20px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+      <div>
+        <div style="font-size:10px;color:var(--text3);font-family:DM Mono,monospace;text-transform:uppercase;margin-bottom:3px">Valor Atual</div>
+        <div id="edit-sum-valor" style="font-family:DM Mono,monospace;font-size:14px;color:var(--text)">—</div>
+      </div>
+      <div>
+        <div style="font-size:10px;color:var(--text3);font-family:DM Mono,monospace;text-transform:uppercase;margin-bottom:3px">Resultado</div>
+        <div id="edit-sum-res" style="font-family:DM Mono,monospace;font-size:14px">—</div>
+      </div>
+      <div>
+        <div style="font-size:10px;color:var(--text3);font-family:DM Mono,monospace;text-transform:uppercase;margin-bottom:3px">DY Mensal</div>
+        <div id="edit-sum-dy" style="font-family:DM Mono,monospace;font-size:14px;color:var(--gold)">—</div>
+      </div>
+    </div>
+
+    <!-- Campos -->
+    <div class="form-grid" style="margin-bottom:20px">
+      <div class="form-group">
+        <label>Quantidade de Cotas</label>
+        <input type="number" id="edit-cotas" min="1" step="1" oninput="updateEditSummary()">
+      </div>
+      <div class="form-group">
+        <label>Setor</label>
+        <select id="edit-setor" onchange="updateEditSummary()">
+          <option>Agro</option>
+          <option>Educacional</option>
+          <option>Financeiro</option>
+          <option>FoF</option>
+          <option>Hotelaria</option>
+          <option>Hospital</option>
+          <option>Híbrido</option>
+          <option>Lajes Corporativas</option>
+          <option>Logística</option>
+          <option>Papel</option>
+          <option>Residencial</option>
+          <option>Shoppings</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Preço Médio (R$)</label>
+        <input type="number" id="edit-pm" step="0.01" oninput="updateEditSummary()">
+      </div>
+      <div class="form-group full">
+        <label>Último Dividendo por Cota (R$)</label>
+        <input type="number" id="edit-div" step="0.001" oninput="updateEditSummary()">
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn" style="color:var(--red);border-color:var(--red)" onclick="confirmRemove()">🗑️ Remover</button>
+      <button class="btn btn-primary" onclick="saveEdit()">✅ Salvar alterações</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ========== STATE ==========
+let fiis = JSON.parse(localStorage.getItem('fiis') || '[]');
+let dividendos = JSON.parse(localStorage.getItem('dividendos') || '[]');
+let charts = {};
+
+// ========== NAVIGATION ==========
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  const pageEl = document.getElementById('page-' + id);
+  if (!pageEl) { console.error('Page not found: page-' + id); return; }
+  pageEl.classList.add('active');
+
+  // Highlight matching nav button by onclick attribute
+  document.querySelectorAll('.nav-btn').forEach(b => {
+    if (b.getAttribute('onclick') === `showPage('${id}')`) b.classList.add('active');
+  });
+  // highlight chat strip
+  const chatStrip = document.querySelector('.chat-strip-btn');
+  if (chatStrip) chatStrip.classList.toggle('active', id === 'chat');
+  if (id === 'dashboard') renderDashboard();
+  if (id === 'dividendos') renderDividendos();
+  if (id === 'carteira') { renderCarteira(); updateDivSelect(); }
+  if (id === 'acoes-dashboard') renderAcoesDashboard();
+  if (id === 'acoes-carteira') renderAcoesCarteira();
+  if (id === 'consolidado') renderConsolidado();
+  // scroll page to top
+  pageEl.scrollTop = 0;
+  const formPage = pageEl.querySelector('.form-page, .dashboard-page');
+  if (formPage) formPage.scrollTop = 0;
+}
+
+// ========== FII CRUD ==========
+function save() {
+  localStorage.setItem('fiis', JSON.stringify(fiis));
+  localStorage.setItem('dividendos', JSON.stringify(dividendos));
+  updateHeader();
+  updateDivSelect();
+}
+
+function addFII(data) {
+  const ticker = (data?.ticker || document.getElementById('f-ticker').value).toUpperCase().trim();
+  const setor = data?.setor || document.getElementById('f-setor').value;
+  const cotas = parseFloat(data?.cotas || document.getElementById('f-cotas').value);
+  const pm = parseFloat(data?.pm || document.getElementById('f-preco').value);
+  const atual = parseFloat(data?.atual || pm); // preço atual via Brapi
+  const dividendo = parseFloat(data?.dividendo || document.getElementById('f-dividendo').value || 0);
+
+  if (!ticker || !cotas || !pm) {
+    notify('Preencha ticker, cotas e preço médio.', true);
+    return false;
+  }
+
+  const idx = fiis.findIndex(f => f.ticker === ticker);
+  const autoSetor = getSetorByTicker(ticker) || setor || 'Híbrido';
+  const entry = { ticker, setor: autoSetor, cotas, pm, atual, dividendo };
+
+  if (idx >= 0) fiis[idx] = entry;
+  else fiis.push(entry);
+
+  if (!data) {
+    document.getElementById('f-ticker').value = '';
+    document.getElementById('f-cotas').value = '';
+    document.getElementById('f-preco').value = '';
+    document.getElementById('f-dividendo').value = '';
+  }
+
+  save();
+  renderCarteira();
+  notify(`${ticker} adicionado à carteira!`);
+  return true;
+}
+
+function removeFII(ticker) {
+  fiis = fiis.filter(f => f.ticker !== ticker);
+  save();
+  renderCarteira();
+  notify(`${ticker} removido.`);
+}
+
+function openEdit(ticker) {
+  const f = fiis.find(f => f.ticker === ticker);
+  if (!f) return;
+
+  document.getElementById('edit-ticker-key').value = ticker;
+  document.getElementById('edit-ticker-display').textContent = ticker;
+
+  const setorKey = (f.setor || 'Hibrido').replace(/\s+/g, '-');
+  const setorEl = document.getElementById('edit-setor-display');
+  setorEl.textContent = f.setor || 'Híbrido';
+  setorEl.className = `setor-pill setor-${setorKey}`;
+
+  document.getElementById('edit-cotas').value = f.cotas;
+  document.getElementById('edit-pm').value = f.pm;
+  document.getElementById('edit-atual').value = f.atual;
+  document.getElementById('edit-div').value = f.dividendo || '';
+
+  // Set setor select
+  const sel = document.getElementById('edit-setor');
+  for (let i = 0; i < sel.options.length; i++) {
+    if (sel.options[i].value === f.setor) { sel.selectedIndex = i; break; }
+  }
+
+  updateEditSummary();
+  document.getElementById('modal-edit').classList.add('open');
+}
+
+function updateEditSummary() {
+  const cotas = parseFloat(document.getElementById('edit-cotas').value) || 0;
+  const pm    = parseFloat(document.getElementById('edit-pm').value) || 0;
+  const atual = parseFloat(document.getElementById('edit-atual').value) || pm;
+  const div   = parseFloat(document.getElementById('edit-div').value) || 0;
+  const setor = document.getElementById('edit-setor').value;
+
+  // Update setor badge live
+  const setorKey = setor.replace(/\s+/g, '-');
+  const setorEl = document.getElementById('edit-setor-display');
+  setorEl.textContent = setor;
+  setorEl.className = `setor-pill setor-${setorKey}`;
+
+  const valor = atual * cotas;
+  const res = (atual - pm) * cotas;
+  const pctRes = pm > 0 ? ((atual - pm) / pm * 100) : 0;
+  const dy = atual > 0 ? (div / atual * 100) : 0;
+
+  document.getElementById('edit-sum-valor').textContent = 'R$ ' + fmt(valor);
+  const resEl = document.getElementById('edit-sum-res');
+  const sinal = res >= 0 ? '+' : '';
+  resEl.textContent = sinal + 'R$ ' + fmt(res) + ' (' + sinal + pct(pctRes) + ')';
+  resEl.style.color = res >= 0 ? 'var(--accent)' : 'var(--red)';
+  document.getElementById('edit-sum-dy').textContent = pct(dy) + ' a.m.';
+}
+
+function saveEdit() {
+  const ticker = document.getElementById('edit-ticker-key').value;
+  const f = fiis.find(f => f.ticker === ticker);
+  if (!f) return;
+
+  const cotas = parseFloat(document.getElementById('edit-cotas').value);
+  const pm    = parseFloat(document.getElementById('edit-pm').value);
+  const atual = parseFloat(document.getElementById('edit-atual').value);
+  const div   = parseFloat(document.getElementById('edit-div').value);
+  const setor = document.getElementById('edit-setor').value;
+
+  if (!cotas || !pm) { notify('Cotas e preço médio são obrigatórios.', true); return; }
+
+  f.cotas    = cotas;
+  f.pm       = pm;
+  f.atual    = f.atual || pm; // mantém cotação atual da Brapi
+  f.dividendo= isNaN(div) ? 0 : div;
+  f.setor    = setor || f.setor;
+
+  closeModal();
+  save();
+  renderCarteira();
+  renderDashboard();
+  notify(`✅ ${ticker} atualizado com sucesso!`);
+}
+
+function confirmRemove() {
+  const ticker = document.getElementById('edit-ticker-key').value;
+  if (!confirm(`Remover ${ticker} da carteira?`)) return;
+  closeModal();
+  removeFII(ticker);
+}
+
+function closeModal() {
+  document.getElementById('modal-edit').classList.remove('open');
+}
+
+function handleModalClick(e) {
+  if (e.target === document.getElementById('modal-edit')) closeModal();
+}
+
+function addDividendo(data) {
+  const ticker = data?.ticker || document.getElementById('div-ticker').value;
+  const data_ = data?.data || document.getElementById('div-data').value;
+  const valor = parseFloat(data?.valor || document.getElementById('div-valor').value);
+
+  if (!ticker || !valor) {
+    notify('Selecione o ticker e informe o valor.', true);
+    return false;
+  }
+
+  const fii = fiis.find(f => f.ticker === ticker);
+  const cotas = fii?.cotas || 0;
+  const total = valor * cotas;
+
+  dividendos.push({ ticker, data: data_ || new Date().toISOString().split('T')[0], valor, cotas, total });
+
+  if (!data) {
+    document.getElementById('div-valor').value = '';
+    document.getElementById('div-data').value = '';
+  }
+
+  save();
+  renderDividendos();
+  notify(`Dividendo de ${ticker} registrado! R$ ${fmt(total)}`);
+  return true;
+}
+
+// ========== RENDER ==========
+function fmt(v) { return (v||0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function pct(v) { return (v||0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%'; }
+
+function calcStats() {
+  let patrimonio = 0, renda = 0, totalPM = 0;
+  fiis.forEach(f => {
+    patrimonio += f.atual * f.cotas;
+    renda += f.dividendo * f.cotas;
+    totalPM += f.pm * f.cotas;
+  });
+  const yield_ = patrimonio > 0 ? (renda / patrimonio * 100) : 0;
+  return { patrimonio, renda, yield_ };
+}
+
+function updateHeader() {
+  const s = calcStats();
+  document.getElementById('h-patrimonio').textContent = 'R$ ' + fmt(s.patrimonio);
+  document.getElementById('h-renda').textContent = 'R$ ' + fmt(s.renda);
+  document.getElementById('h-yield').textContent = pct(s.yield_);
+}
+
+function renderDashboard() {
+  const s = calcStats();
+  document.getElementById('d-patrimonio').textContent = 'R$ ' + fmt(s.patrimonio);
+  document.getElementById('d-dividendos').textContent = 'R$ ' + fmt(s.renda);
+  document.getElementById('d-yield').textContent = pct(s.yield_);
+
+  // Table
+  const tbody = document.getElementById('dash-tbody');
+  if (fiis.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:32px">Nenhum FII cadastrado.</td></tr>';
+  } else {
+    tbody.innerHTML = fiis.map(f => {
+      const val = f.atual * f.cotas;
+      const pm_total = f.pm * f.cotas;
+      const res = val - pm_total;
+      const dy = f.atual > 0 ? (f.dividendo / f.atual * 100) : 0;
+      const cls = res >= 0 ? 'badge-green' : 'badge-red';
+      const sinal = res >= 0 ? '+' : '';
+      return `<tr>
+        <td><strong style="color:var(--accent);font-family:DM Mono">${f.ticker}</strong></td>
+        <td>${f.setor}</td>
+        <td style="font-family:DM Mono">${f.cotas}</td>
+        <td style="font-family:DM Mono">R$ ${fmt(f.pm)}</td>
+        <td style="font-family:DM Mono">R$ ${fmt(f.atual)}</td>
+        <td style="font-family:DM Mono;color:var(--gold)">R$ ${fmt(f.dividendo)}/cota</td>
+        <td><span class="badge badge-gold">${pct(dy)}</span></td>
+        <td><span class="badge ${cls}">${sinal}R$ ${fmt(res)}</span></td>
+      </tr>`;
+    }).join('');
+  }
+
+  // Chart patrimônio
+  const months = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const now = new Date().getMonth();
+  const labels = Array.from({length:6}, (_,i) => months[(now-5+i+12)%12]);
+  const base = s.patrimonio;
+  const vals = labels.map((_,i) => Math.max(0, base * (0.85 + i * 0.03 + Math.random()*0.01)));
+  vals[5] = base;
+
+  destroyChart('chart-patrimonio');
+  const ctx1 = document.getElementById('chart-patrimonio').getContext('2d');
+  charts['chart-patrimonio'] = new Chart(ctx1, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Patrimônio',
+        data: vals,
+        borderColor: '#00e87a',
+        backgroundColor: 'rgba(0,232,122,0.08)',
+        fill: true,
+        tension: 0.4,
+        pointBackgroundColor: '#00e87a',
+        pointRadius: 4,
+      }]
+    },
+    options: { ...chartOpts(), plugins: { legend: { display: false } } }
+  });
+
+  // Chart setor
+  const setores = {};
+  fiis.forEach(f => {
+    const v = f.atual * f.cotas;
+    setores[f.setor] = (setores[f.setor] || 0) + v;
+  });
+  const colors = ['#00e87a','#3fa6ff','#f5c842','#ff4d6d','#a78bfa','#fb923c','#34d399','#60a5fa'];
+  destroyChart('chart-setor');
+  const ctx2 = document.getElementById('chart-setor').getContext('2d');
+  const setorTotal = Object.values(setores).reduce((a,b) => a+b, 0);
+  charts['chart-setor'] = new Chart(ctx2, {
+    type: 'doughnut',
+    data: {
+      labels: Object.keys(setores),
+      datasets: [{
+        data: Object.values(setores),
+        backgroundColor: colors,
+        borderColor: '#242424',
+        borderWidth: 2,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: {
+            color: '#9a9a9a',
+            font: { family: 'DM Mono', size: 11 },
+            padding: 8,
+            generateLabels: chart => {
+              const data = chart.data;
+              return data.labels.map((label, i) => {
+                const val = data.datasets[0].data[i];
+                const pct = setorTotal > 0 ? (val / setorTotal * 100).toFixed(1) : 0;
+                return {
+                  text: `${label}  ${pct}%`,
+                  fillStyle: data.datasets[0].backgroundColor[i],
+                  strokeStyle: '#242424',
+                  fontColor: '#9a9a9a',
+                  lineWidth: 1,
+                  hidden: false,
+                  index: i
+                };
+              });
+            }
+          }
+        },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const val = ctx.parsed;
+              const pct = setorTotal > 0 ? (val / setorTotal * 100).toFixed(1) : 0;
+              return ` ${pct}% — R$ ${val.toLocaleString('pt-BR', {minimumFractionDigits:2})}`;
+            }
+          }
+        }
+      }
+    }
+  });
+
+  // ── Bar chart por setor (full width) ──
+  const setorLabels = Object.keys(setores);
+  const setorVals = Object.values(setores);
+  destroyChart('chart-setor-bar');
+  const ctxBar = document.getElementById('chart-setor-bar');
+  if (ctxBar) {
+    charts['chart-setor-bar'] = new Chart(ctxBar.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: setorLabels,
+        datasets: [{
+          label: 'Valor (R$)',
+          data: setorVals,
+          backgroundColor: colors.slice(0, setorLabels.length),
+          borderRadius: 6,
+          borderSkipped: false,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { color: '#38383888' }, ticks: { color: '#9a9a9a', font: { family: 'DM Mono', size: 11 } } },
+          y: { grid: { color: '#38383888' }, ticks: { color: '#9a9a9a', font: { family: 'DM Mono', size: 11 }, callback: v => 'R$' + fmt(v) } }
+        }
+      }
+    });
+  }
+
+  // ── Ranking top5 / bottom5 ──
+  renderRanking();
+}
+
+function renderRanking() {
+  const topEl = document.getElementById('rank-top');
+  const botEl = document.getElementById('rank-bot');
+  if (!topEl || !botEl) return;
+
+  if (fiis.length === 0) {
+    const empty = '<div style="text-align:center;color:var(--text3);padding:24px;font-size:13px">Nenhum FII cadastrado.</div>';
+    topEl.innerHTML = empty; botEl.innerHTML = empty; return;
+  }
+
+  const ranked = [...fiis].map(f => ({
+    ...f,
+    pct: f.pm > 0 ? ((f.atual - f.pm) / f.pm * 100) : 0
+  })).sort((a, b) => b.pct - a.pct);
+
+  const maxAbs = Math.max(...ranked.map(r => Math.abs(r.pct)), 0.01);
+
+  const makeRow = (f, i, isTop) => {
+    const sinal = f.pct >= 0 ? '+' : '';
+    const color = f.pct >= 0 ? 'var(--accent)' : 'var(--red)';
+    const barColor = f.pct >= 0 ? '#00e87a' : '#ff4d6d';
+    const barW = Math.min(100, Math.abs(f.pct) / maxAbs * 100);
+    const setorKey = f.setor.replace(/\s+/g,'-');
+    return `<div class="rank-row">
+      <div class="rank-pos">${i + 1}</div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+          <span class="rank-ticker">${f.ticker}</span>
+          <span class="setor-pill setor-${setorKey}" style="font-size:9px;padding:1px 5px">${f.setor}</span>
+        </div>
+        <div class="rank-bar-wrap"><div class="rank-bar" style="width:${barW}%;background:${barColor}"></div></div>
+      </div>
+      <div class="rank-pct" style="color:${color}">${sinal}${pct(f.pct)}</div>
+    </div>`;
+  };
+
+  const top5 = ranked.slice(0, 5);
+  const bot5 = ranked.slice(-5).reverse();
+
+  topEl.innerHTML = top5.map((f, i) => makeRow(f, i, true)).join('') ||
+    '<div style="color:var(--text3);font-size:12px;padding:12px">Dados insuficientes</div>';
+  botEl.innerHTML = bot5.map((f, i) => makeRow(f, i, false)).join('') ||
+    '<div style="color:var(--text3);font-size:12px;padding:12px">Dados insuficientes</div>';
+}
+
+function chartOpts() {
+  return {
+    responsive: true, maintainAspectRatio: false,
+    scales: {
+      x: { grid: { color: '#383838' }, ticks: { color: '#555555', font: { family: 'DM Mono', size: 11 } } },
+      y: { grid: { color: '#383838' }, ticks: { color: '#555555', font: { family: 'DM Mono', size: 11 }, callback: v => 'R$' + fmt(v) } }
+    },
+    plugins: { legend: { labels: { color: '#9a9a9a', font: { family: 'DM Mono', size: 11 } } } }
+  };
+}
+
+function destroyChart(id) {
+  if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+}
+
+function limparFiltrosCarteira() {
+  const el = id => document.getElementById(id);
+  if (el('cart-filter-ticker')) el('cart-filter-ticker').value = '';
+  if (el('cart-filter-setor'))  el('cart-filter-setor').value  = '';
+  if (el('cart-filter-result')) el('cart-filter-result').value = '';
+  if (el('cart-sort'))          el('cart-sort').value          = '';
+  renderCarteira();
+}
+
+function renderCarteira() {
+  const tbody = document.getElementById('cart-tbody');
+  if (fiis.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:32px">Nenhum FII cadastrado.</td></tr>';
+    return;
+  }
+
+  // Lê filtros
+  const fTicker = (document.getElementById('cart-filter-ticker')?.value || '').toUpperCase().trim();
+  const fSetor  = document.getElementById('cart-filter-setor')?.value  || '';
+  const fResult = document.getElementById('cart-filter-result')?.value || '';
+  const fSort   = document.getElementById('cart-sort')?.value          || '';
+
+  let lista = fiis.map(f => {
+    const val    = f.atual * f.cotas;
+    const res    = val - f.pm * f.cotas;
+    const pctRes = f.pm > 0 ? ((f.atual - f.pm) / f.pm * 100) : 0;
+    const dy     = f.atual > 0 ? (f.dividendo / f.atual * 100) : 0;
+    return { ...f, val, res, pctRes, dy };
+  });
+
+  // Filtra
+  if (fTicker) lista = lista.filter(f => f.ticker.includes(fTicker));
+  if (fSetor)  lista = lista.filter(f => f.setor === fSetor);
+  if (fResult === 'pos') lista = lista.filter(f => f.res >= 0);
+  if (fResult === 'neg') lista = lista.filter(f => f.res < 0);
+
+  // Ordena
+  if (fSort === 'ticker')      lista.sort((a,b) => a.ticker.localeCompare(b.ticker));
+  if (fSort === 'cotas')       lista.sort((a,b) => b.cotas - a.cotas);
+  if (fSort === 'valor')       lista.sort((a,b) => b.val - a.val);
+  if (fSort === 'result_desc') lista.sort((a,b) => b.pctRes - a.pctRes);
+  if (fSort === 'result_asc')  lista.sort((a,b) => a.pctRes - b.pctRes);
+  if (fSort === 'dy')          lista.sort((a,b) => b.dy - a.dy);
+
+  if (lista.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:24px">Nenhum FII encontrado com esses filtros.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = lista.map(f => {
+    const cls = f.res >= 0 ? 'badge-green' : 'badge-red';
+    const sinal = f.res >= 0 ? '+' : '';
+    const setorKey = f.setor.replace(/\s+/g,'-');
+    return `<tr>
+      <td><strong style="color:var(--accent);font-family:DM Mono">${f.ticker}</strong></td>
+      <td><span class="setor-pill setor-${setorKey}">${f.setor}</span></td>
+      <td style="font-family:DM Mono">${f.cotas}</td>
+      <td style="font-family:DM Mono">R$ ${fmt(f.pm)}</td>
+      <td style="font-family:DM Mono">R$ ${fmt(f.atual)}</td>
+      <td><span class="badge ${cls}">${sinal}R$ ${fmt(f.res)}<br><span style="font-size:10px">${sinal}${pct(f.pctRes)}</span></span></td>
+      <td style="display:flex;gap:6px">
+        <button class="btn" style="padding:4px 10px;font-size:12px" onclick="openEdit('${f.ticker}')">✏️</button>
+        <button class="btn" style="padding:4px 10px;font-size:12px;color:var(--red)" onclick="removeFII('${f.ticker}')">🗑️</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function renderDividendos() {
+  const total = dividendos.reduce((a, d) => a + d.total, 0);
+
+  // Tabela de último dividendo por FII
+  const tbody = document.getElementById('div-fii-tbody');
+  if (tbody) {
+    if (!fiis.length) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:24px">Nenhum FII na carteira.</td></tr>';
+    } else {
+      const totalRenda = fiis.reduce((s, f) => s + (f.dividendo || 0) * f.cotas, 0);
+      tbody.innerHTML = fiis
+        .slice()
+        .sort((a, b) => (b.dividendo * b.cotas) - (a.dividendo * a.cotas))
+        .map(f => {
+          const rendaFii = (f.dividendo || 0) * f.cotas;
+          const yieldM   = f.atual > 0 ? (f.dividendo / f.atual * 100) : 0;
+          const pctRenda = totalRenda > 0 ? (rendaFii / totalRenda * 100) : 0;
+          const setorKey = (f.setor || '').replace(/\s+/g, '-');
+          const ultReg = dividendos
+            .filter(d => d.ticker === f.ticker && d.data)
+            .sort((a,b) => b.data.localeCompare(a.data))[0];
+          const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+          let divRef = '';
+          if (ultReg?.data) {
+            const [y, m] = ultReg.data.slice(0,7).split('-');
+            divRef = `${meses[parseInt(m)-1]}/${y.slice(2)}`;
+          }
+          return `<tr>
+            <td><strong style="color:var(--accent);font-family:DM Mono">${f.ticker}</strong></td>
+            <td><span class="setor-pill setor-${setorKey}">${f.setor}</span></td>
+            <td style="font-family:DM Mono">${f.cotas}</td>
+            <td style="font-family:DM Mono;color:var(--gold)">
+              R$ ${fmt(f.dividendo || 0)}
+              ${divRef ? `<div style="font-size:10px;color:var(--text3)">${divRef}</div>` : ''}
+            </td>
+            <td style="font-family:DM Mono;color:var(--accent);font-weight:600">
+              R$ ${fmt(rendaFii)}
+              <div style="height:2px;background:var(--border);border-radius:2px;margin-top:3px">
+                <div style="height:2px;width:${Math.min(100,pctRenda).toFixed(1)}%;background:var(--accent);border-radius:2px"></div>
+              </div>
+            </td>
+            <td><span class="badge badge-gold">${pct(yieldM)}</span></td>
+          </tr>`;
+        }).join('');
+    }
+  }
+  document.getElementById('div-total').textContent = 'R$ ' + fmt(total);
+  document.getElementById('div-count').textContent = dividendos.length;
+
+  // Renda mensal estimada com cotas atuais
+  const rendaMensal = fiis.reduce((s, f) => s + (f.dividendo || 0) * f.cotas, 0);
+  const elRenda = document.getElementById('div-renda-mensal');
+  if (elRenda) elRenda.textContent = 'R$ ' + fmt(rendaMensal);
+
+  const list = document.getElementById('div-list');
+  if (dividendos.length === 0) {
+    list.innerHTML = '<div style="text-align:center;color:var(--text3);padding:32px">Nenhum dividendo registrado.</div>';
+  } else {
+    list.innerHTML = [...dividendos]
+      .sort((a,b) => (b.data||'').localeCompare(a.data||''))
+      .map(d =>
+        `<div class="div-item">
+          <div>
+            <div class="div-ticker">${d.ticker}</div>
+            <div class="div-date">${d.data || '—'} · ${d.cotas} cotas · R$ ${fmt(d.valor)}/cota</div>
+          </div>
+          <div class="div-value">R$ ${fmt(d.total)}</div>
+        </div>`
+      ).join('');
+  }
+
+  // Gráfico — agrupa por mês com totais reais (cotas × dividendo do mês)
+  const byMonth = {};
+  dividendos.forEach(d => {
+    if (!d.data && d.data !== 0) return;
+    const key = d.data ? d.data.slice(0, 7) : 'N/A';
+    if (!byMonth[key]) byMonth[key] = 0;
+    // Usa o total real (cotas × valor/cota registrado)
+    byMonth[key] += parseFloat(d.total) || 0;
+  });
+
+  // Garante pelo menos os últimos 6 meses no gráfico
+  const hoje = new Date();
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+    const key = d.toISOString().slice(0, 7);
+    if (!byMonth[key]) byMonth[key] = 0;
+  }
+
+  const mLabels = Object.keys(byMonth).sort();
+  const mVals = mLabels.map(k => byMonth[k]);
+
+  // Formata labels para mês/ano curto
+  const labelsFormatted = mLabels.map(k => {
+    const [y, m] = k.split('-');
+    const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    return `${meses[parseInt(m)-1]}/${y.slice(2)}`;
+  });
+
+  destroyChart('chart-dividendos');
+  const ctx = document.getElementById('chart-dividendos').getContext('2d');
+  charts['chart-dividendos'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labelsFormatted,
+      datasets: [{
+        label: 'Renda (R$)',
+        data: mVals,
+        backgroundColor: mVals.map(v => v > 0 ? 'rgba(245,200,66,0.4)' : 'rgba(56,56,56,0.3)'),
+        borderColor: mVals.map(v => v > 0 ? '#f5c842' : '#383838'),
+        borderWidth: 1,
+        borderRadius: 6,
+      }]
+    },
+    options: {
+      ...chartOpts(),
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => `R$ ${fmt(ctx.parsed.y)}`
+          }
+        }
+      }
+    }
+  });
+}
+
+function updateDivSelect() {
+  const sel = document.getElementById('div-ticker');
+  sel.innerHTML = '<option value="">Selecione FII...</option>' +
+    fiis.map(f => `<option>${f.ticker}</option>`).join('');
+}
+
+// ========== CHAT IA ==========
+function getTime() {
+  return new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+
+function appendMsg(text, type) {
+  const msgs = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = `msg ${type}`;
+  // Escapa HTML para msgs de texto puro
+  const safe = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  div.innerHTML = `<div class="bubble" style="white-space:pre-wrap">${safe}</div><div class="msg-time">${getTime()}</div>`;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return div;
+}
+
+function appendMsgHTML(html, type) {
+  const msgs = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = `msg ${type}`;
+  div.innerHTML = `<div class="bubble">${html}</div><div class="msg-time">${getTime()}</div>`;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return div;
+}
+
+function showTyping() {
+  const msgs = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = 'msg bot';
+  div.id = 'typing-indicator';
+  div.innerHTML = `<div class="bubble"><div class="typing-bubble"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div></div>`;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function hideTyping() {
+  const t = document.getElementById('typing-indicator');
+  if (t) t.remove();
+}
+
+// ========== CHAT LOCAL — sem API externa ==========
+
+// Estado de conversa guiada
+let chatState = null;
+let chatPending = {};
+
+function sendMessage() {
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  input.style.height = 'auto';
+  appendMsg(text, 'user');
+  showTyping();
+  setTimeout(() => {
+    hideTyping();
+    const reply = window.processChat(text);
+    if (reply && typeof reply === 'object' && reply.__html) {
+      appendMsgHTML(reply.__html, 'bot');
+    } else {
+      appendMsg(reply, 'bot');
+    }
+    renderCarteira();
+    renderDashboard();
+  }, 500);
+}
+
+function num(str) {
+  // extrai número de string como "110,50" ou "110.50" ou "R$ 110,50"
+  return parseFloat((str || '0').replace(/[^\d,\.]/g,'').replace(',','.')) || 0;
+}
+
+function extractTicker(text) {
+  const upper = text.toUpperCase();
+  // Tenta com separadores ao redor
+  let m = upper.match(/(?:^|[\s\-:,\/])([A-Z]{4}[0-9]{2}B?)(?:[\s\-:,\/]|$)/);
+  if (m) return m[1];
+  // Fallback: qualquer padrão 4 letras + 2 dígitos
+  m = upper.match(/([A-Z]{4}[0-9]{2}B?)/);
+  return m ? m[1] : null;
+}
+
+function extractNumbers(text) {
+  // Remove tickers antes de extrair números para não pegar o "11" do HGLG11
+  const semTicker = text.toUpperCase().replace(/[A-Z]{4}[0-9]{2}B?/g, ' ');
+  return [...semTicker.matchAll(/\d+(?:[,.]\d+)?/g)]
+    .map(m => parseFloat(m[0].replace(',','.')))
+    .filter(n => !isNaN(n) && n > 0);
+}
+
+// ========== BASE DE FIIs — SETORES REAIS ==========
+const FII_DB = {
+  // LOGÍSTICA
+  'TRBL11':'Logística','HGLG11':'Logística','XPLG11':'Logística','BRCO11':'Logística','LVBI11':'Logística',
+  'GGRC11':'Logística','BTLG11':'Logística','VILG11':'Logística','CXCE11':'Logística',
+  'GARE11':'Logística','SDIL11':'Logística','VINO11':'Logística','MALL11':'Logística',
+  'LGCP11':'Logística','RBRL11':'Logística','TRXF11':'Logística','ALZR11':'Logística',
+  'PATL11':'Logística','HLOG11':'Logística','SNEL11':'Logística','GLOG11':'Logística',
+
+  // SHOPPINGS
+  'XPML11':'Shoppings','VISC11':'Shoppings','HSML11':'Shoppings','ABCP11':'Shoppings',
+  'MALL11':'Shoppings','FIGS11':'Shoppings','JRDM11':'Shoppings','PQAG11':'Shoppings',
+  'BPML11':'Shoppings','GSFI11':'Shoppings','FLMA11':'Shoppings','ATSA11':'Shoppings',
+
+  // LAJES CORPORATIVAS
+  'KNRI11':'Lajes Corporativas','BRCR11':'Lajes Corporativas','RCRB11':'Lajes Corporativas',
+  'HGRE11':'Lajes Corporativas','JSRE11':'Lajes Corporativas','TGAR11':'Lajes Corporativas',
+  'PVBI11':'Lajes Corporativas','VVPR11':'Lajes Corporativas','FVPQ11':'Lajes Corporativas',
+  'ONEF11':'Lajes Corporativas','BLMR11':'Lajes Corporativas','CBOP11':'Lajes Corporativas',
+  'EDGA11':'Lajes Corporativas','RBRP11':'Lajes Corporativas','GTWR11':'Lajes Corporativas',
+  'BMLC11':'Lajes Corporativas','CPTS11':'Lajes Corporativas','HGPO11':'Lajes Corporativas',
+
+  // PAPEL (CRI/CRA/Recebíveis)
+  'KNCR11':'Papel','CRI11':'Papel','MCCI11':'Papel','MXRF11':'Papel',
+  'IRDM11':'Papel','HGCR11':'Papel','RBRY11':'Papel','OUJP11':'Papel',
+  'VRTA11':'Papel','BCFF11':'Papel','VGIR11':'Papel','RBRR11':'Papel',
+  'RECR11':'Papel','DEVA11':'Papel','TPFT11':'Papel','NCHB11':'Papel',
+  'PLCR11':'Papel','CVBI11':'Papel','BARI11':'Papel','BTCI11':'Papel',
+  'VGHF11':'Papel','HABT11':'Papel','HFOF11':'Papel','KNHY11':'Papel',
+  'RZAK11':'Papel','SNFF11':'Papel','XPCI11':'Papel','GTFI11':'Papel',
+
+  // RESIDENCIAL
+  'HGRU11':'Residencial','URPR11':'Residencial','RBRF11':'Residencial',
+  'ALZR11':'Residencial','RZAK11':'Residencial','RVBI11':'Residencial',
+
+  // HOSPITAL / SAÚDE
+  'HCTR11':'Hospital','NSLU11':'Hospital','HSLG11':'Hospital','HUSC11':'Hospital',
+  'HOSI11':'Hospital','CARE11':'Hospital','DASA11':'Hospital',
+
+  // HOTEL / HOTELARIA
+  'HTMX11':'Hotelaria','XPHT11':'Hotelaria','BPHA11':'Hotelaria',
+
+  // AGRO / RURAL
+  'RURA11':'Agro','RZTR11':'Agro','VSLH11':'Agro','GCRA11':'Agro',
+  'AFHI11':'Agro','APTO11':'Agro','TRXB11':'Agro',
+
+  // FOF (Fundo de Fundos)
+  'BCFF11':'FoF','BPFF11':'FoF','CRFF11':'FoF','HFOF11':'FoF',
+  'KFOF11':'FoF','MGFF11':'FoF','RBFF11':'FoF','SNFF11':'FoF',
+  'XPFF11':'FoF','FOFT11':'FoF','VFOF11':'FoF',
+
+  // HÍBRIDO / DIVERSIFICADO
+  'HGBS11':'Híbrido','VGIP11':'Híbrido','TSNC11':'Híbrido','RZAG11':'Híbrido',
+  'RECT11':'Híbrido','RBVA11':'Híbrido','PLRI11':'Híbrido','FIIB11':'Híbrido',
+
+  // EDUCACIONAL
+  'RBED11':'Educacional','FAED11':'Educacional','FCFL11':'Educacional',
+
+  // BANCÁRIO / FINANCEIRO
+  'BBFI11':'Financeiro','CXRI11':'Financeiro','BBPO11':'Financeiro',
+};
+
+function getSetorByTicker(ticker) {
+  if (!ticker) return null;
+  return FII_DB[ticker.toUpperCase()] || null;
+}
+
+function extractSetor(text) {
+  // 1. Tenta pelo ticker na base de dados
+  const ticker = extractTicker(text);
+  if (ticker && FII_DB[ticker]) return FII_DB[ticker];
+
+  // 2. Fallback por palavras-chave no texto
+  const t = text.toLowerCase();
+  if (t.includes('logíst') || t.includes('logist') || t.includes('galpão')) return 'Logística';
+  if (t.includes('shoppi') || t.includes('shopping') || t.includes('varejo')) return 'Shoppings';
+  if (t.includes('laje') || t.includes('corporat') || t.includes('escritório') || t.includes('escritorio')) return 'Lajes Corporativas';
+  if (t.includes('resid') || t.includes('apart') || t.includes('moradia')) return 'Residencial';
+  if (t.includes('hospit') || t.includes('saúde') || t.includes('clínica') || t.includes('clinica')) return 'Hospital';
+  if (t.includes('hotel') || t.includes('hotelaria')) return 'Hotelaria';
+  if (t.includes('agro') || t.includes('rural') || t.includes('fazenda')) return 'Agro';
+  if (t.includes('papel') || t.includes('cri') || t.includes('recebível') || t.includes('recebivel')) return 'Papel';
+  if (t.includes('fof') || t.includes('fundo de fundo')) return 'FoF';
+  if (t.includes('educa') || t.includes('escola') || t.includes('univers')) return 'Educacional';
+  return 'Híbrido';
+}
+
+function processChat(text) {
+  const t = text.toLowerCase();
+
+  // ---- FLUXO GUIADO EM ANDAMENTO ----
+
+  // Estado: aguardando ticker
+  if (chatState === 'add_fii_ticker') {
+    const ticker = extractTicker(text);
+    if (!ticker) return `❓ Não reconheci o ticker. Digite no formato correto.\nExemplos: HGLG11, XPML11, KNRI11`;
+    chatPending.ticker = ticker;
+    chatPending.setor = extractSetor(text);
+    chatState = 'add_fii_cotas';
+    return `🏢 ${ticker} — quantas cotas você comprou?`;
+  }
+
+  if (chatState === 'add_fii_cotas') {
+    const n = extractNumbers(text);
+    if (!n.length) return '❓ Não entendi. Quantas cotas você comprou? (ex: 50)';
+    chatPending.cotas = n[0];
+    chatState = 'add_fii_pm';
+    return `📊 Entendido! ${n[0]} cotas de ${chatPending.ticker}.\n\nQual foi o preço médio pago por cota? (ex: 115,50)`;
+  }
+
+  if (chatState === 'add_fii_pm') {
+    const n = extractNumbers(text);
+    if (!n.length) return '❓ Não entendi. Qual o preço médio? (ex: 110,50)';
+    chatPending.pm = n[0];
+    chatState = 'add_fii_div';
+    return `💰 Preço médio: R$ ${fmt(n[0])}.\n\nQual o valor do último dividendo por cota? (ex: 0,85 — ou 0 se não souber)\n\n💡 O preço atual será atualizado automaticamente pela Brapi.`;
+  }
+
+  if (chatState === 'add_fii_div') {
+    const n = extractNumbers(text);
+    chatPending.dividendo = n.length ? n[0] : 0;
+    chatState = null;
+    const d = chatPending;
+    const ok = addFII(d);
+    chatPending = {};
+    if (!ok) return '⚠️ Erro ao adicionar. Tente pelo formulário na aba Carteira.';
+    const total = d.cotas * d.pm;
+    const renda = d.dividendo * d.cotas;
+    const dy = d.atual > 0 ? (d.dividendo / d.atual * 100) : 0;
+    return `✅ ${d.ticker} adicionado com sucesso!\n\n🏢 Setor: ${d.setor}\n📦 ${d.cotas} cotas × R$ ${fmt(d.pm)} = R$ ${fmt(total)}\n💰 Renda estimada: R$ ${fmt(renda)}/mês\n📊 DY: ${pct(dy)}`;
+  }
+
+  if (chatState === 'add_div_ticker') {
+    const ticker = extractTicker(text);
+    if (!ticker) {
+      const lista = fiis.map(f => f.ticker).join('  •  ');
+      return `❓ Não reconheci o ticker. Digite no formato correto.\n\nSeus FIIs: ${lista}`;
+    }
+    const fii = fiis.find(f => f.ticker === ticker);
+    if (!fii) return `⚠️ ${ticker} não está na sua carteira.`;
+    chatPending = { ticker };
+    chatState = 'add_div_valor';
+    return `💰 ${ticker} — qual o valor do dividendo por cota? (ex: 0,85)`;
+  }
+
+  if (chatState === 'add_div_valor') {
+    const n = extractNumbers(text);
+    if (!n.length) return '❓ Não entendi. Qual o valor por cota? (ex: 0,85)';
+    chatPending.valor = n[0];
+    chatState = null;
+    const d = chatPending;
+    const fii = fiis.find(f => f.ticker === d.ticker);
+    const total = n[0] * (fii?.cotas || 0);
+    addDividendo({ ticker: d.ticker, valor: n[0], data: new Date().toISOString().split('T')[0] });
+    chatPending = {};
+    return `✅ Dividendo registrado!\n\n💰 ${d.ticker}: R$ ${fmt(n[0])}/cota\n📦 ${fii?.cotas || 0} cotas → Total: R$ ${fmt(total)}`;
+  }
+
+  // ---- INTENÇÃO: ADICIONAR FII ----
+  // Detecta intenção OU presença de ticker sozinho (usuário digitou só o ticker)
+  const ticker_direto = extractTicker(text);
+  const isAdd = /adicion|comprei|comprar|cadastr|inclui|inserir|novo fii|add/.test(t) || (ticker_direto && t.length < 15);
+  if (isAdd) {
+    const ticker = ticker_direto;
+    const nums = extractNumbers(text);
+    const setor = extractSetor(text);
+
+    // Tem tudo: ticker + pelo menos 2 números (cotas + pm)
+    if (ticker && nums.length >= 2) {
+      const cotas = nums[0];
+      const pm = nums[1];
+      const atual = pm; // será atualizado pela Brapi
+      const dividendo = nums[2] || 0;
+      const ok = addFII({ ticker, setor, cotas, pm, atual, dividendo });
+      if (!ok) return '⚠️ Verifique os dados e tente novamente.';
+      return `✅ ${ticker} adicionado!\n\n🏢 Setor: ${setor}\n📦 ${cotas} cotas × R$ ${fmt(pm)} = R$ ${fmt(cotas*pm)}\n💰 Dividendo: R$ ${fmt(dividendo)}/cota`;
+    }
+
+    // Tem ticker mas falta dados — inicia fluxo guiado
+    if (ticker) {
+      chatState = 'add_fii_cotas';
+      chatPending = { ticker, setor };
+      return `🏢 Vamos adicionar ${ticker} à sua carteira!\n\nQuantas cotas você comprou?`;
+    }
+
+    // Sem ticker — inicia direto o fluxo guiado com formato
+    chatState = 'add_fii_ticker';
+    chatPending = {};
+    return { __html: `
+      <div style="margin-bottom:12px;font-size:13px;color:var(--text2)">➕ Adicionar FII — informe um dado por vez:</div>
+      <div style="background:var(--surface2);border-radius:10px;overflow:hidden;font-family:DM Mono,monospace;font-size:12px">
+        <div style="display:grid;grid-template-columns:110px 1fr;border-bottom:1px solid var(--border)">
+          <div style="padding:8px 12px;color:var(--text3);border-right:1px solid var(--border)">Ticker</div>
+          <div style="padding:8px 12px;color:var(--accent)">HGLG11</div>
+        </div>
+        <div style="display:grid;grid-template-columns:110px 1fr;border-bottom:1px solid var(--border)">
+          <div style="padding:8px 12px;color:var(--text3);border-right:1px solid var(--border)">Cotas</div>
+          <div style="padding:8px 12px;color:var(--text2)">50</div>
+        </div>
+        <div style="display:grid;grid-template-columns:110px 1fr;border-bottom:1px solid var(--border)">
+          <div style="padding:8px 12px;color:var(--text3);border-right:1px solid var(--border)">Preço médio</div>
+          <div style="padding:8px 12px;color:var(--text2)">170,00</div>
+        </div>
+        <div style="display:grid;grid-template-columns:110px 1fr;border-bottom:1px solid var(--border)">
+          <div style="padding:8px 12px;color:var(--text3);border-right:1px solid var(--border)">Preço atual</div>
+          <div style="padding:8px 12px;color:var(--text2)">175,00 <span style="color:var(--text3)">(opcional)</span></div>
+        </div>
+        <div style="display:grid;grid-template-columns:110px 1fr">
+          <div style="padding:8px 12px;color:var(--text3);border-right:1px solid var(--border)">Dividendo</div>
+          <div style="padding:8px 12px;color:var(--text2)">0,85 <span style="color:var(--text3)">(opcional)</span></div>
+        </div>
+      </div>
+      <div style="margin-top:12px;font-size:13px;color:var(--text2)">Qual o <strong style="color:var(--text)">ticker</strong> do FII?</div>
+    ` };
+  }
+
+  // ---- INTENÇÃO: REGISTRAR DIVIDENDO ----
+  // Exclui frases de consulta que contenham "total", "quanto", "mais", "melhor", "paga", "qual"
+  const isConsulta = /total|quanto|melhor|paga|qual|maior|ranking|recebidos/.test(t);
+  const isDiv = !isConsulta && /dividend|provento|receb|pagamento|rendimento/.test(t);
+  if (isDiv) {
+    const ticker = extractTicker(text);
+    const nums = extractNumbers(text);
+
+    if (ticker && nums.length >= 1) {
+      const valor = nums[0];
+      const fii = fiis.find(f => f.ticker === ticker);
+      if (!fii) return `⚠️ ${ticker} não está na sua carteira. Adicione-o primeiro.`;
+      const total = valor * fii.cotas;
+      addDividendo({ ticker, valor, data: new Date().toISOString().split('T')[0] });
+      return `✅ Dividendo de ${ticker} registrado!\n\n💰 R$ ${fmt(valor)}/cota × ${fii.cotas} cotas = R$ ${fmt(total)}`;
+    }
+
+    if (ticker) {
+      const fii = fiis.find(f => f.ticker === ticker);
+      if (!fii) return `⚠️ ${ticker} não está na sua carteira. Adicione-o primeiro.`;
+      chatState = 'add_div_valor';
+      chatPending = { ticker };
+      return `💰 Registrar dividendo de ${ticker}.\n\nQual o valor por cota? (ex: 0,85)`;
+    }
+
+    if (fiis.length === 0) return '⚠️ Você não tem FIIs cadastrados ainda. Adicione um primeiro!';
+
+    // Inicia fluxo guiado para dividendo
+    chatState = 'add_div_ticker';
+    chatPending = {};
+    const lista = fiis.map(f => f.ticker).join('  •  ');
+    return `💰 Vamos registrar um dividendo!\n\nQual FII recebeu o provento?\n\n• ${lista}`;
+  }
+
+  // ---- CONSULTAS ----
+  if (/patrim|total|valor.{0,10}cart/.test(t)) {
+    if (fiis.length === 0) return '📭 Sua carteira está vazia. Adicione FIIs para começar!';
+    const s = calcStats();
+    return `🏦 Patrimônio total: R$ ${fmt(s.patrimonio)}\n💰 Renda mensal: R$ ${fmt(s.renda)}\n📊 Yield médio: ${pct(s.yield_)}\n📦 FIIs na carteira: ${fiis.length}`;
+  }
+
+  if (/carteira|meus fii|lista|quais fii/.test(t)) {
+    if (fiis.length === 0) return '📭 Carteira vazia! Use "adicionar XXXX11" para começar.';
+    const lista = fiis.map(f => {
+      const val = f.atual * f.cotas;
+      const dy = f.atual > 0 ? (f.dividendo/f.atual*100) : 0;
+      return `• ${f.ticker} — ${f.cotas} cotas — R$ ${fmt(val)} — DY ${pct(dy)}`;
+    }).join('\n');
+    return `📊 Sua carteira (${fiis.length} FIIs):\n\n${lista}`;
+  }
+
+  if (/melhor.{0,15}dy|maior.{0,15}yield|mais.{0,15}dividend|paga.{0,15}dividend|paga.{0,15}mais|melhor.{0,15}fii/.test(t)) {
+    if (fiis.length === 0) return '📭 Carteira vazia ainda. Adicione FIIs para comparar.';
+    const sorted = [...fiis].map(f => ({
+      ...f, dy: f.atual > 0 ? (f.dividendo / f.atual * 100) : 0
+    })).sort((a, b) => b.dy - a.dy);
+
+    const top3 = sorted.slice(0, Math.min(3, sorted.length));
+    const linhas = top3.map((f, i) => {
+      const medal = ['🥇','🥈','🥉'][i];
+      return `${medal} ${f.ticker} — DY ${pct(f.dy)} | R$ ${fmt(f.dividendo)}/cota`;
+    }).join('\n');
+
+    return `📈 Ranking de DY da sua carteira:\n\n${linhas}\n\n💡 DY = dividendo ÷ preço atual`;
+  }
+
+  if (/total.{0,15}receb|total.{0,15}dividend|dividend.{0,15}receb|quanto.{0,15}receb|receb.{0,15}total|provento/.test(t)) {
+    const total = dividendos.reduce((a,d) => a+d.total, 0);
+    if (dividendos.length === 0) return '📭 Nenhum dividendo registrado ainda. Use "registrar dividendo" para começar.';
+
+    // Agrupa por ticker
+    const porTicker = {};
+    dividendos.forEach(d => { porTicker[d.ticker] = (porTicker[d.ticker] || 0) + d.total; });
+    const rankDiv = Object.entries(porTicker).sort((a,b) => b[1]-a[1]).slice(0,3);
+    const linhas = rankDiv.map(([ticker, val]) => `  • ${ticker}: R$ ${fmt(val)}`).join('\n');
+
+    const mesAtual = new Date().toISOString().slice(0,7);
+    const totalMes = dividendos.filter(d => d.data && d.data.startsWith(mesAtual)).reduce((a,d) => a+d.total, 0);
+
+    return `💵 Total de dividendos recebidos:\n\nAcumulado: R$ ${fmt(total)}\nMês atual: R$ ${fmt(totalMes)}\nRegistros: ${dividendos.length}\n\n🏆 Maiores pagadores:\n${linhas}`;
+  }
+
+  if (/remov|delet|exclu/.test(t)) {
+    const ticker = extractTicker(text);
+    if (ticker) {
+      const existe = fiis.find(f => f.ticker === ticker);
+      if (!existe) return `⚠️ ${ticker} não está na carteira.`;
+      removeFII(ticker);
+      return `🗑️ ${ticker} removido da carteira.`;
+    }
+    return '❓ Qual FII deseja remover? (ex: "remover HGLG11")';
+  }
+
+  if (/ajuda|help|o que|como usar|comando/.test(t)) {
+    return `🤖 Comandos que entendo:\n\n➕ Adicionar FII:\n"adicionar HGLG11 50 cotas a 170"\n"comprei XPML11 100 cotas 95 reais"\n\n💰 Registrar dividendo:\n"dividendo HGLG11 de 0,95"\n"recebi provento XPML11 0,80"\n\n📊 Consultas:\n"qual meu patrimônio?"\n"mostrar carteira"\n"qual FII tem maior DY?"\n"total de dividendos recebidos"\n\n🗑️ Remover:\n"remover HGLG11"`;
+  }
+
+  // ---- FALLBACK ----
+  return `🤔 Não entendi bem. Tente:\n\n• "adicionar HGLG11 50 cotas a 170"\n• "dividendo XPML11 de 0,85"\n• "mostrar carteira"\n• "ajuda" para ver todos os comandos`;
+}
+
+function sendChip(text) {
+  // Reseta estado pendente ao clicar num chip de atalho
+  chatState = null;
+  chatPending = {};
+  const btn = document.getElementById('btn-cancelar-fluxo');
+  if (btn) btn.style.display = 'none';
+  document.getElementById('chat-input').value = text;
+  sendMessage();
+}
+
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+
+// ========== NOTIFY ==========
+function notify(msg, error = false) {
+  const n = document.createElement('div');
+  n.className = 'notification';
+  n.style.borderColor = error ? 'var(--red)' : 'var(--accent)';
+  n.style.color = error ? 'var(--red)' : 'var(--accent)';
+  n.textContent = msg;
+  document.body.appendChild(n);
+  setTimeout(() => n.remove(), 3000);
+}
+
+
+// ========== IMPORTAR B3 ==========
+let importPending = [];
+
+function toggleCollapsible(id) {
+  const body = document.getElementById(id);
+  const chevron = document.getElementById('chevron-' + id);
+  const isOpen = body.style.maxHeight && body.style.maxHeight !== '0px';
+  body.style.maxHeight = isOpen ? '0px' : body.scrollHeight + 500 + 'px';
+  if (chevron) chevron.classList.toggle('open', !isOpen);
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('import-zone').classList.remove('drag');
+  const file = e.dataTransfer.files[0];
+  if (file) handleFileImport(file);
+}
+
+function handleFileImport(file) {
+  if (!file) return;
+  const ext = file.name.split('.').pop().toLowerCase();
+  const reader = new FileReader();
+
+  reader.onload = function(e) {
+    try {
+      let fiisFound = [];
+      if (ext === 'csv') {
+        fiisFound = parseB3CSV(e.target.result);
+      } else {
+        const data = new Uint8Array(e.target.result);
+        const wb = XLSX.read(data, { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+        fiisFound = parseB3Rows(rows);
+      }
+
+      if (fiisFound.length === 0) {
+        notify('Nenhum FII encontrado no arquivo. Verifique se é o extrato correto da B3.', true);
+        return;
+      }
+
+      importPending = fiisFound;
+      showImportPreview(fiisFound);
+    } catch(err) {
+      notify('Erro ao ler o arquivo: ' + err.message, true);
+    }
+  };
+
+  if (ext === 'csv') {
+    reader.readAsText(file, 'latin1');
+  } else {
+    reader.readAsArrayBuffer(file);
+  }
+}
+
+function parseB3CSV(text) {
+  const lines = text.split(/\r?\n/).map(l => l.split(/[;,]/));
+  return parseB3Rows(lines);
+}
+
+function parseB3Rows(rows) {
+  const found = [];
+
+  const parseNum = (val) => {
+    if (val === undefined || val === null || val === '') return 0;
+    return parseFloat(String(val).replace(/[R$\s]/g,'').replace(/\.(?=\d{3})/g,'').replace(',','.')) || 0;
+  };
+
+  // ── Layout padrão B3 (colunas fixas) ──────────────────────────
+  // Coluna A(0)=Entrada/Saída, B(1)=Data, C(2)=Movimentação,
+  // D(3)=Produto, E(4)=Instituição, F(5)=Quantidade, G(6)=Preço,
+  // H(7)=Valor da Operação
+  // PM por operação = Coluna H ÷ Coluna F
+  // Também tenta detectar cabeçalho dinâmico como fallback
+
+  let colTicker = -1, colQty = -1, colValor = -1, colPreco = -1;
+  let headerRow = -1;
+
+  // 1. Tenta encontrar linha de cabeçalho
+  for (let i = 0; i < Math.min(rows.length, 25); i++) {
+    const row = rows[i].map(c => String(c).toLowerCase().trim());
+    const hasTicker = row.some(c => c.includes('produto') || c.includes('ativo') || c.includes('código') || c.includes('ticker'));
+    const hasQty    = row.some(c => c.includes('quant'));
+    if (hasTicker && hasQty) {
+      headerRow = i;
+      row.forEach((cell, idx) => {
+        if (cell.includes('produto') || cell.includes('ativo') || cell.includes('código') || cell.includes('ticker')) colTicker = idx;
+        if (cell.includes('quant')) colQty = idx;
+        // Coluna de valor total da operação (H)
+        if (cell.includes('valor') && (cell.includes('oper') || cell.includes('total') || cell.includes('financ'))) colValor = idx;
+        // Coluna de preço unitário (G) — fallback se não tiver colValor
+        if ((cell.includes('preço') || cell.includes('preco')) && !cell.includes('médio') && !cell.includes('medio')) colPreco = idx;
+        // Preço médio direto
+        if (cell.includes('médio') || cell.includes('medio')) colPreco = idx;
+      });
+      break;
+    }
+  }
+
+  // 2. Fallback: B3 padrão — detecta pela posição do ticker
+  if (headerRow === -1 || colTicker === -1) {
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      for (let j = 0; j < row.length; j++) {
+        const val = String(row[j]).trim().toUpperCase();
+        if (/^[A-Z]{4}[0-9]{2}B?$/.test(val)) {
+          colTicker = j;
+          // B3 padrão: ticker na col D(3), qty na F(5), valor na H(7)
+          if (j === 3) {
+            colQty   = 5;  // coluna F
+            colValor = 7;  // coluna H
+            colPreco = 6;  // coluna G (preço unitário)
+          } else {
+            colQty   = j + 2;
+            colValor = j + 4;
+            colPreco = j + 3;
+          }
+          headerRow = i - 1;
+          break;
+        }
+      }
+      if (headerRow !== -1) break;
+    }
+  }
+
+  const startRow = Math.max(0, headerRow + 1);
+
+  for (let i = startRow; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row || row.length < 2) continue;
+
+    // Extrai ticker
+    let ticker = null;
+    const colsToCheck = colTicker >= 0 ? [colTicker] : [...Array(Math.min(row.length, 8)).keys()];
+    for (const j of colsToCheck) {
+      const val = String(row[j] || '').trim().toUpperCase();
+      if (/^[A-Z]{4}[0-9]{2}B?$/.test(val)) { ticker = val; break; }
+      const m = val.match(/([A-Z]{4}[0-9]{2}B?)/);
+      if (m) { ticker = m[1]; break; }
+    }
+    if (!ticker) continue;
+
+    const cotas      = parseNum(colQty   >= 0 ? row[colQty]   : 0);
+    const valorTotal = parseNum(colValor  >= 0 ? row[colValor] : 0);
+    const precoUnit  = parseNum(colPreco  >= 0 ? row[colPreco] : 0);
+
+    if (cotas <= 0) continue;
+
+    // PM = Valor total da operação (col H) ÷ Quantidade (col F)
+    // Fallback: usa preço unitário direto se não tiver valor total
+    let pm = 0;
+    if (valorTotal > 0 && cotas > 0) {
+      pm = parseFloat((valorTotal / cotas).toFixed(4));
+    } else if (precoUnit > 0) {
+      pm = precoUnit;
+    }
+
+    found.push({ ticker, cotas, pm, dividendo: 0, setor: 'Híbrido' });
+  }
+
+  // Agrupa por ticker — PM ponderado = Σ(valor_i) / Σ(cotas_i)
+  const agrupado = {};
+  found.forEach(f => {
+    if (!agrupado[f.ticker]) {
+      agrupado[f.ticker] = { ticker: f.ticker, cotas: 0, totalInvestido: 0, setor: f.setor };
+    }
+    agrupado[f.ticker].cotas         += f.cotas;
+    agrupado[f.ticker].totalInvestido += f.cotas * f.pm;
+  });
+
+  return Object.values(agrupado).map(f => {
+    const pm = f.cotas > 0 && f.totalInvestido > 0
+      ? parseFloat((f.totalInvestido / f.cotas).toFixed(2))
+      : 0;
+    return { ticker: f.ticker, cotas: f.cotas, pm, atual: pm, dividendo: 0, setor: f.setor };
+  });
+}
+
+function showImportPreview(fiisFound) {
+  const preview = document.getElementById('import-preview');
+  const list = document.getElementById('preview-list');
+  preview.classList.add('show');
+
+  // Expand collapsible if not open
+  const body = document.getElementById('b3-steps');
+  if (body.style.maxHeight === '0px' || !body.style.maxHeight) {
+    toggleCollapsible('b3-steps');
+  }
+
+  const semPM = fiisFound.filter(f => !f.pm || f.pm <= 0).length;
+
+  document.getElementById('preview-count').textContent = `${fiisFound.length} FII(s) encontrados`;
+  list.innerHTML = (semPM > 0
+    ? `<div style="background:rgba(245,200,66,0.1);border:1px solid rgba(245,200,66,0.3);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;color:var(--gold)">
+        ⚠️ ${semPM} FII(s) sem preço médio no arquivo — será definido como R$ 0,01 e atualizado pela Brapi automaticamente.
+       </div>` : '') +
+  fiisFound.map(f =>
+    `<div class="preview-row">
+      <div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="preview-ticker">${f.ticker}</div>
+          <span style="font-size:10px;color:var(--text3);font-family:DM Mono,monospace">${getSetorByTicker(f.ticker) || f.setor || 'Híbrido'}</span>
+        </div>
+        <div class="preview-detail">${f.cotas} cotas${f.pm && f.pm > 0 ? ' · PM R$ ' + fmt(f.pm) : ' · preço via Brapi'}</div>
+      </div>
+      <div class="preview-detail" style="color:var(--accent)">${f.pm && f.pm > 0 ? 'R$ ' + fmt(f.pm * f.cotas) : '—'}</div>
+    </div>`
+  ).join('');
+
+  // scroll to preview
+  preview.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function confirmImport() {
+  let added = 0, updated = 0, erros = 0;
+  importPending.forEach(f => {
+    if (!f.ticker || !f.cotas) { erros++; return; }
+    // Garante pm mínimo (0.01) para passar validação — Brapi atualizará o preço real
+    if (!f.pm || isNaN(f.pm) || f.pm <= 0) f.pm = 0.01;
+    f.atual = f.pm;
+    const exists = fiis.find(x => x.ticker === f.ticker);
+    // Insere diretamente sem passar pelo form
+    const autoSetor = getSetorByTicker(f.ticker) || f.setor || 'Híbrido';
+    const entry = { ticker: f.ticker, setor: autoSetor, cotas: f.cotas, pm: f.pm, atual: f.atual, dividendo: f.dividendo || 0 };
+    const idx = fiis.findIndex(x => x.ticker === f.ticker);
+    if (idx >= 0) fiis[idx] = entry; else fiis.push(entry);
+    exists ? updated++ : added++;
+  });
+  importPending = [];
+  cancelImport();
+  save();
+  renderCarteira();
+  renderDashboard();
+  const msg = erros > 0
+    ? `✅ ${added} novos, ${updated} atualizados. ⚠️ ${erros} ignorados (sem ticker/cotas).`
+    : `✅ ${added} novos, ${updated} atualizados!`;
+  notify(msg, erros > 0);
+  if (added + updated > 0 && fiis.some(f => f.pm <= 0.01)) {
+    setTimeout(() => notify('💡 Clique em 🔄 Atualizar cotações para buscar os preços reais pela Brapi.'), 2500);
+  }
+}
+
+function cancelImport() {
+  document.getElementById('import-preview').classList.remove('show');
+  document.getElementById('preview-list').innerHTML = '';
+  importPending = [];
+}
+
+
+// ========== VOZ — Speech Recognition ==========
+let recognition = null;
+let isRecording = false;
+
+function initVoice() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) return null;
+  const r = new SpeechRecognition();
+  r.lang = 'pt-BR';
+  r.continuous = false;
+  r.interimResults = true;
+  r.maxAlternatives = 1;
+  return r;
+}
+
+function toggleVoice() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    notify('Reconhecimento de voz não suportado neste navegador. Use Chrome ou Safari.', true);
+    return;
+  }
+
+  if (isRecording) {
+    stopVoice();
+    return;
+  }
+
+  startVoice();
+}
+
+function startVoice() {
+  recognition = initVoice();
+  if (!recognition) return;
+
+  const btn = document.getElementById('mic-btn');
+  const input = document.getElementById('chat-input');
+
+  isRecording = true;
+  btn.classList.add('recording');
+  btn.innerHTML = '⏹️<div class="mic-ripple"></div><div class="voice-hint">Ouvindo...</div>';
+  input.placeholder = '🎙️ Ouvindo, fale agora...';
+
+  let finalTranscript = '';
+
+  recognition.onresult = (e) => {
+    let interim = '';
+    finalTranscript = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript;
+      if (e.results[i].isFinal) finalTranscript += t;
+      else interim += t;
+    }
+    input.value = finalTranscript || interim;
+    autoResize(input);
+  };
+
+  recognition.onend = () => {
+    stopVoice();
+    if (finalTranscript.trim()) {
+      // Pequeno delay para o usuário ver o texto antes de enviar
+      setTimeout(() => sendMessage(), 400);
+    }
+  };
+
+  recognition.onerror = (e) => {
+    stopVoice();
+    if (e.error === 'not-allowed') {
+      notify('Permissão de microfone negada. Verifique as configurações do navegador.', true);
+    } else if (e.error !== 'no-speech') {
+      notify('Erro no reconhecimento de voz: ' + e.error, true);
+    }
+  };
+
+  recognition.start();
+}
+
+function stopVoice() {
+  isRecording = false;
+  const btn = document.getElementById('mic-btn');
+  const input = document.getElementById('chat-input');
+  btn.classList.remove('recording');
+  btn.innerHTML = '🎙️';
+  input.placeholder = 'Digite ou use o microfone...';
+  if (recognition) {
+    try { recognition.stop(); } catch(e) {}
+    recognition = null;
+  }
+}
+
+// Normaliza números por extenso para dígitos (pt-BR)
+// Ex: "cinquenta" → "50", "cento e setenta" → "170"
+const numWords = {
+  'zero':0,'um':1,'uma':1,'dois':2,'duas':2,'três':3,'tres':3,
+  'quatro':4,'cinco':5,'seis':6,'sete':7,'oito':8,'nove':9,
+  'dez':10,'onze':11,'doze':12,'treze':13,'quatorze':14,'catorze':14,
+  'quinze':15,'dezesseis':16,'dezessete':17,'dezoito':18,'dezenove':19,
+  'vinte':20,'trinta':30,'quarenta':40,'cinquenta':50,'sessenta':60,
+  'setenta':70,'oitenta':80,'noventa':90,
+  'cem':100,'cento':100,'duzentos':200,'duzentas':200,'trezentos':300,'trezentas':300,
+  'quatrocentos':400,'quatrocentas':400,'quinhentos':500,'quinhentas':500,
+  'seiscentos':600,'seiscentas':600,'setecentos':700,'setecentas':700,
+  'oitocentos':800,'oitocentas':800,'novecentos':900,'novecentas':900,
+  'mil':1000
+};
+
+function normalizeVoiceText(text) {
+  let t = text.toLowerCase()
+    .replace(/vírgula/g, ',')
+    .replace(/ponto/g, '.')
+    .replace(/ e /g, ' ');
+
+  // Substitui sequências de números por extenso
+  const words = t.split(/\s+/);
+  const result = [];
+  let i = 0;
+  while (i < words.length) {
+    const w = words[i];
+    if (numWords[w] !== undefined) {
+      let total = 0;
+      let j = i;
+      // Soma palavras numéricas consecutivas (ex: "cento cinquenta" = 150)
+      while (j < words.length && numWords[words[j]] !== undefined) {
+        const v = numWords[words[j]];
+        if (v === 1000) total = (total || 1) * 1000;
+        else if (v >= 100) total += v;
+        else total += v;
+        j++;
+      }
+      result.push(total);
+      i = j;
+    } else {
+      result.push(w);
+      i++;
+    }
+  }
+  return result.join(' ');
+}
+
+
+
+
+// ========== SELEÇÃO DE MODO DE ADIÇÃO ==========
+function selectAddMode(mode) {
+  chatState = null;
+  chatPending = {};
+
+  if (mode === 'rapido') {
+    appendMsgHTML(`
+      <div style="font-weight:700;margin-bottom:10px">🚀 Forma Rápida</div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:10px">Digite uma mensagem no formato:</div>
+      <div class="chat-example" onclick="fillInput('comprei HGLG11 50 cotas a 170')">comprei HGLG11 50 cotas a 170</div>
+      <div class="chat-example" onclick="fillInput('adicionar XPML11 100 cotas 95,50 dividendo 0,85')">adicionar XPML11 100 cotas 95,50 dividendo 0,85</div>
+      <div class="chat-example" onclick="fillInput('adicionar KNRI11 200 cotas 170 atual 175 dividendo 0,95')">adicionar KNRI11 200 cotas 170 atual 175 dividendo 0,95</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:10px;font-family:DM Mono,monospace">
+        👆 Toque em qualquer exemplo para copiar no campo de texto
+      </div>
+    `, 'bot');
+  }
+
+  else if (mode === 'voz') {
+    appendMsgHTML(`
+      <div style="font-weight:700;margin-bottom:10px">🎙️ Adição por Voz</div>
+      <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:10px">
+        1. Toque no botão <strong style="color:var(--accent)">🎙️</strong> ao lado do campo de texto<br>
+        2. Aguarde o indicador vermelho pulsando<br>
+        3. Fale sua mensagem claramente
+      </div>
+      <div style="font-size:12px;color:var(--gold);margin-bottom:8px">💡 Dica para o ticker:</div>
+      <div style="font-size:12px;color:var(--text2);font-family:DM Mono,monospace;background:var(--surface2);padding:8px 10px;border-radius:8px;line-height:1.8">
+        Soletrie letra por letra:<br>
+        "H G L G onze" → HGLG11<br>
+        "X P M L onze" → XPML11<br>
+        "K N R I onze" → KNRI11
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-top:10px;font-family:DM Mono,monospace">
+        Exemplo completo: "adicionar H G L G onze, cinquenta cotas, cento e setenta reais"
+      </div>
+    `, 'bot');
+    setTimeout(() => startVoice(), 800);
+  }
+
+  else if (mode === 'guiado') {
+    chatState = 'add_fii_ticker';
+    chatPending = {};
+    appendMsg('💬 Vamos passo a passo!\n\nQual o ticker do FII que deseja adicionar?\n(ex: HGLG11, XPML11, KNRI11)', 'bot');
+  }
+}
+
+function fillInput(text) {
+  const input = document.getElementById('chat-input');
+  input.value = text;
+  autoResize(input);
+  input.focus();
+}
+
+
+
+
+// ========== CONTROLE DO CHAT ==========
+function limparChat() {
+  if (!confirm('Limpar todas as mensagens do chat?')) return;
+  const msgs = document.getElementById('chat-messages');
+  msgs.innerHTML = `<div class="msg bot">
+            <div class="bubble">👋 Olá! Sou o assistente de FIIs.
+
+Posso te ajudar a:
+• Adicionar FIIs à carteira
+• Registrar dividendos recebidos
+• Consultar sua carteira e rendimentos
+• Analisar seu portfólio
+
+Use os atalhos abaixo ou digite livremente!</div>
+            <div class="msg-time">agora</div>
+          </div>`;
+  // Mantém estado e fluxo guiado intacto
+}
+
+function reiniciarChat() {
+  if (!confirm('Reiniciar o chat? O fluxo em andamento será cancelado.')) return;
+  // Limpa mensagens
+  const msgs = document.getElementById('chat-messages');
+  msgs.innerHTML = `<div class="msg bot">
+            <div class="bubble">👋 Olá! Sou o assistente de FIIs.
+
+Posso te ajudar a:
+• Adicionar FIIs à carteira
+• Registrar dividendos recebidos
+• Consultar sua carteira e rendimentos
+• Analisar seu portfólio
+
+Use os atalhos abaixo ou digite livremente!</div>
+            <div class="msg-time">agora</div>
+          </div>`;
+  // Reseta estado do fluxo
+  chatState = null;
+  chatPending = {};
+  // Limpa input
+  const input = document.getElementById('chat-input');
+  input.value = '';
+  input.style.height = 'auto';
+  // Para voz se estiver ativa
+  if (isRecording) stopVoice();
+  // Esconde botão cancelar
+  document.getElementById('btn-cancelar-fluxo').style.display = 'none';
+  notify('Chat reiniciado!');
+}
+
+function cancelarFluxo() {
+  chatState = null;
+  chatPending = {};
+  document.getElementById('btn-cancelar-fluxo').style.display = 'none';
+  appendMsg('↩️ Operação cancelada. Como posso ajudar?', 'bot');
+  document.getElementById('chat-input').value = '';
+}
+
+// Intercepta processChat: normaliza voz + controla botão cancelar
+const _processChatOriginal = processChat;
+window.processChat = function(text) {
+  const result = _processChatOriginal(normalizeVoiceText(text));
+  const btn = document.getElementById('btn-cancelar-fluxo');
+  if (btn) btn.style.display = chatState ? 'block' : 'none';
+  return result;
+};
+
+
+// ========== BRAPI — ATUALIZAÇÃO DE COTAÇÕES ==========
+let brapiToken = localStorage.getItem('brapiToken') || '';
+let workerUrl   = localStorage.getItem('workerUrl') || '';
+
+function atualizarCotacoes() {
+  if (!brapiToken) {
+    // Preenche token salvo se houver
+    document.getElementById('brapi-token-input').value = brapiToken;
+    document.getElementById('modal-token').classList.add('open');
+    return;
+  }
+  buscarCotacoesBrapi();
+}
+
+async function testarToken() {
+  const token = document.getElementById('brapi-token-input').value.trim();
+  const result = document.getElementById('token-test-result');
+  result.style.display = 'block';
+  result.style.color = 'var(--text3)';
+  result.textContent = '⏳ Testando token...';
+
+  if (!token) {
+    result.style.color = 'var(--red)';
+    result.textContent = '❌ Cole o token antes de testar.';
+    return;
+  }
+
+  try {
+    // Testa com HGLG11 como ticker de referência
+    const url = `https://brapi.dev/api/quote/HGLG11?token=${token}&fundamental=false`;
+    const res = await fetch(url, { method: 'GET' });
+    const data = await res.json();
+
+    if (res.status === 401 || res.status === 403 || data.error) {
+      result.style.color = 'var(--red)';
+      result.textContent = `❌ Token inválido (${res.status}): ${data.message || 'Verifique o token no painel da Brapi'}`;
+    } else if (data.results?.[0]?.regularMarketPrice) {
+      result.style.color = 'var(--accent)';
+      result.textContent = `✅ Token válido! HGLG11 = R$ ${data.results[0].regularMarketPrice.toFixed(2)}`;
+    } else {
+      result.style.color = 'var(--gold)';
+      result.textContent = '⚠️ Resposta inesperada da API. Tente salvar mesmo assim.';
+    }
+  } catch (err) {
+    result.style.color = 'var(--red)';
+    result.textContent = `❌ Erro de rede: ${err.message}`;
+  }
+}
+
+function salvarTokenBrapi() {
+  const token = document.getElementById('brapi-token-input').value.trim();
+  if (!token) { notify('Cole o token antes de salvar.', true); return; }
+  brapiToken = token;
+  localStorage.setItem('brapiToken', token);
+  document.getElementById('modal-token').classList.remove('open');
+  buscarCotacoesBrapi();
+}
+
+async function buscarCotacoesBrapi() {
+  if (fiis.length === 0) { notify('Nenhum FII na carteira para atualizar.', true); return; }
+
+  const btn = document.getElementById('btn-update-cotacoes');
+  const label = document.getElementById('upd-label');
+  btn.classList.add('loading');
+  label.textContent = 'Buscando...';
+
+  // Plano free Brapi = 1 ticker por requisição — chama um por um
+  const todos = fiis.map(f => f.ticker);
+  let atualizados = 0;
+  let naoEncontrados = [];
+
+  // Atualiza label com progresso
+  const total = todos.length;
+
+  try {
+    for (let i = 0; i < todos.length; i++) {
+      const ticker = todos[i];
+      // Normaliza tickers de subscrição (ex: XPML12 → XPML11, KNHY15 → KNHY11)
+      // Cotas de subscrição não têm cotação na Brapi — busca o ticker principal
+      const tickerBusca = ticker.replace(/([A-Z]{4})(1[2-9]|[2-9][0-9])$/, '$111');
+      label.textContent = `Buscando ${i + 1}/${total}...`;
+
+      // Tenta com e sem sufixo .SA
+      const tentativas = [tickerBusca, tickerBusca + '.SA'];
+      let achou = false;
+
+      for (const sym of tentativas) {
+        const url = `https://brapi.dev/api/quote/${sym}?token=${brapiToken}&fundamental=false`;
+
+        let res;
+        try {
+          res = await fetch(url, { method: 'GET' });
+        } catch (netErr) {
+          throw new Error('Failed to fetch');
+        }
+
+        if (res.status === 401 || res.status === 403) throw new Error('TOKEN_INVALIDO');
+
+        if (res.status === 429) {
+          label.textContent = `⏳ Aguardando limite... (${i+1}/${total})`;
+          await new Promise(r => setTimeout(r, 5000));
+          res = await fetch(url, { method: 'GET' });
+          if (res.status === 429) throw new Error('LIMITE_EXCEDIDO');
+        }
+
+        // 404 neste símbolo — tenta o próximo (com/sem .SA)
+        if (res.status === 404) continue;
+
+        if (!res.ok) {
+          let body = '';
+          try { body = await res.text(); } catch(e) {}
+          console.error(`Brapi error for ${sym}: ${res.status} ${body.slice(0,200)}`);
+          if (res.status === 401 || res.status === 403) throw new Error('TOKEN_INVALIDO');
+          naoEncontrados.push(ticker);
+          break;
+        }
+
+        let data;
+        try { data = await res.json(); } catch(e) { naoEncontrados.push(ticker); break; }
+        console.log(`Brapi ${sym}: status=${res.status} error=${data.error} price=${data.results?.[0]?.regularMarketPrice}`);
+
+        // Se API retornou erro explícito no body — tenta próxima variante
+        if (data.error) continue;
+
+        const q = data.results?.[0];
+        if (!q) { naoEncontrados.push(ticker); break; }
+
+        const fii = fiis.find(f => f.ticker === ticker);
+        if (fii) {
+          if (q.regularMarketPrice > 0) {
+            fii.atual = parseFloat(q.regularMarketPrice.toFixed(2));
+          }
+          if (q.dividendsData?.cashDividends?.length) {
+            const divs = q.dividendsData.cashDividends
+              .filter(d => d.rate > 0)
+              .sort((a, b) => new Date(b.paymentDate || b.declarationDate || 0) - new Date(a.paymentDate || a.declarationDate || 0));
+            if (divs.length > 0) {
+              const ultDiv = divs[0];
+              fii.dividendo = parseFloat(ultDiv.rate.toFixed(4));
+              const mesDiv = (ultDiv.paymentDate || '').slice(0, 7);
+              const jaExiste = dividendos.some(d => d.ticker === ticker && d.data && d.data.startsWith(mesDiv) && mesDiv);
+              if (mesDiv && !jaExiste && fii.cotas > 0) {
+                dividendos.push({
+                  ticker,
+                  data: ultDiv.paymentDate || new Date().toISOString().slice(0, 10),
+                  valor: ultDiv.rate,
+                  cotas: fii.cotas,
+                  total: parseFloat((ultDiv.rate * fii.cotas).toFixed(2))
+                });
+              }
+            }
+          }
+          atualizados++;
+          achou = true;
+          break;
+        }
+      }
+
+      if (!achou && !naoEncontrados.includes(ticker)) naoEncontrados.push(ticker);
+
+      // 1.1s entre chamadas — plano free Brapi permite ~15 req/min
+      if (i < todos.length - 1) await new Promise(r => setTimeout(r, 1100));
+    }
+
+    save();
+    renderDashboard();
+    renderCarteira();
+    renderDividendos();
+
+    const agora = new Date().toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
+    document.getElementById('upd-time').textContent = `Atualizado às ${agora}`;
+    btn.classList.remove('loading');
+    btn.classList.add('success');
+    label.textContent = `✓ ${atualizados} atualizados`;
+    setTimeout(() => { btn.classList.remove('success'); label.textContent = 'Atualizar cotações'; }, 4000);
+
+    if (naoEncontrados.length) {
+      console.warn('Não encontrados na Brapi:', naoEncontrados);
+      // Mostra aviso apenas se TODOS falharam
+      if (atualizados === 0) {
+        notify(`⚠️ Nenhum FII atualizado. Tickers sem cotação: ${naoEncontrados.join(', ')}`, true);
+      } else {
+        notify(`✅ ${atualizados} atualizados. Sem cotação: ${naoEncontrados.join(', ')}`);
+      }
+    }
+    else notify(`✅ ${atualizados} FIIs atualizados com sucesso!`);
+
+  } catch (err) {
+    btn.classList.remove('loading');
+    btn.classList.add('error');
+    label.textContent = '⚠️ Erro';
+    setTimeout(() => { btn.classList.remove('error'); label.textContent = 'Atualizar cotações'; }, 5000);
+
+    if (err.message === 'TOKEN_INVALIDO') {
+      brapiToken = '';
+      localStorage.removeItem('brapiToken');
+      document.getElementById('brapi-token-input').value = '';
+      document.getElementById('modal-token').classList.add('open');
+      notify('Token inválido ou expirado. Insira um novo token.', true);
+    } else if (err.message === 'LIMITE_EXCEDIDO') {
+      notify('Limite de requisições excedido. Aguarde 1 minuto e tente novamente.', true);
+    } else if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
+      notify('Sem conexão com a internet. Verifique sua rede e tente novamente.', true);
+    } else {
+      notify(`Erro ao buscar cotações: ${err.message}`, true);
+    }
+  }
+}
+
+// Atualiza cotações automaticamente ao abrir o app se tiver token salvo
+if (brapiToken && fiis.length > 0) {
+  setTimeout(() => buscarCotacoesBrapi(), 1500);
+}
+
+
+// ========== DASHBOARD CARROSSEL ==========
+function updateDots() {
+  const slider = document.getElementById('dashboard-slides');
+  if (!slider) return;
+  const idx = Math.round(slider.scrollLeft / slider.clientWidth);
+  document.querySelectorAll('.slide-dot').forEach((d, i) => {
+    d.classList.toggle('active', i === idx);
+  });
+  if (idx === 1) renderSlide2();
+}
+
+function goToSlide(idx) {
+  const slider = document.getElementById('dashboard-slides');
+  if (!slider) return;
+  slider.scrollTo({ left: idx * slider.clientWidth, behavior: 'smooth' });
+}
+
+function renderSlide2() {
+  // Tabela
+  const tbody2 = document.getElementById('dash-tbody-2');
+  if (tbody2 && fiis.length > 0) {
+    tbody2.innerHTML = fiis.map(f => {
+      const val = f.atual * f.cotas;
+      const pm_total = f.pm * f.cotas;
+      const res = val - pm_total;
+      const pctRes = f.pm > 0 ? ((f.atual - f.pm) / f.pm * 100) : 0;
+      const dy = f.atual > 0 ? (f.dividendo / f.atual * 100) : 0;
+      const cls = res >= 0 ? 'badge-green' : 'badge-red';
+      const sinal = res >= 0 ? '+' : '';
+      const setorKey = (f.setor || '').replace(/\s+/g, '-');
+      return `<tr>
+        <td><strong style="color:var(--accent);font-family:DM Mono">${f.ticker}</strong></td>
+        <td><span class="setor-pill setor-${setorKey}">${f.setor}</span></td>
+        <td style="font-family:DM Mono">${f.cotas}</td>
+        <td style="font-family:DM Mono">R$ ${fmt(f.pm)}</td>
+        <td style="font-family:DM Mono">R$ ${fmt(f.atual)}</td>
+        <td style="font-family:DM Mono;color:var(--gold)">R$ ${fmt(f.dividendo)}/cota</td>
+        <td><span class="badge badge-gold">${pct(dy)}</span></td>
+        <td><span class="badge ${cls}">${sinal}R$ ${fmt(f.res)}<br><span style="font-size:10px">${sinal}${pct(f.pctRes)}</span></span></td>
+      </tr>`;
+    }).join('');
+  }
+  // Ranking
+  const topEl2 = document.getElementById('rank-top-2');
+  const botEl2 = document.getElementById('rank-bot-2');
+  if (topEl2 && botEl2) {
+    const ranked = [...fiis].map(f => ({
+      ...f, pct_val: f.pm > 0 ? ((f.atual - f.pm) / f.pm * 100) : 0
+    })).sort((a, b) => b.pct_val - a.pct_val);
+    const maxAbs = Math.max(...ranked.map(r => Math.abs(r.pct_val)), 0.01);
+    const makeRow = (f, i) => {
+      const s = f.pct_val >= 0 ? '+' : '';
+      const color = f.pct_val >= 0 ? 'var(--accent)' : 'var(--red)';
+      const barColor = f.pct_val >= 0 ? '#00e87a' : '#ff4d6d';
+      const barW = Math.min(100, Math.abs(f.pct_val) / maxAbs * 100);
+      const setorKey = (f.setor || '').replace(/\s+/g, '-');
+      return `<div class="rank-row">
+        <div class="rank-pos">${i + 1}</div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+            <span class="rank-ticker">${f.ticker}</span>
+            <span class="setor-pill setor-${setorKey}" style="font-size:9px;padding:1px 5px">${f.setor}</span>
+          </div>
+          <div class="rank-bar-wrap"><div class="rank-bar" style="width:${barW}%;background:${barColor}"></div></div>
+        </div>
+        <div class="rank-pct" style="color:${color}">${s}${pct(f.pct_val)}</div>
+      </div>`;
+    };
+    const empty = '<div style="color:var(--text3);font-size:12px;padding:12px">Nenhum FII cadastrado.</div>';
+    topEl2.innerHTML = ranked.length ? ranked.slice(0, 5).map((f, i) => makeRow(f, i)).join('') : empty;
+    botEl2.innerHTML = ranked.length ? ranked.slice(-5).reverse().map((f, i) => makeRow(f, i)).join('') : empty;
+  }
+}
+
+
+// ========== BUSCAR DIVIDENDOS DA BRAPI ==========
+async function buscarDividendosBrapi() {
+  if (fiis.length === 0) { notify('Nenhum FII na carteira.', true); return; }
+
+  // Se não tem Worker configurado, pede para configurar
+  if (!workerUrl) {
+    const url = prompt('Cole a URL do seu Cloudflare Worker:\n(ex: https://fii-dividendos.usuario.workers.dev)');
+    if (!url) return;
+    workerUrl = url.trim().replace(/\/$/, '');
+    localStorage.setItem('workerUrl', workerUrl);
+  }
+
+  const btnDiv   = document.getElementById('btn-buscar-div');
+  const iconDiv  = btnDiv?.querySelector('.div-btn-icon');
+  const labelDiv = btnDiv?.querySelector('.div-btn-label');
+  if (btnDiv) { btnDiv.disabled = true; iconDiv?.classList.add('spinning'); if(labelDiv) labelDiv.textContent = 'Buscando...'; }
+
+  notify('🔄 Buscando dividendos via Investidor10...');
+
+  const hoje = new Date().toISOString().slice(0, 10);
+  let atualizados = 0;
+  const semDividendo = [];
+
+  const tickerMap = {
+    'MALL11': 'PMLL11',
+    'SDIL11': 'TRBL11',
+    'BCFF11': 'BTHF11',
+  };
+
+  async function buscarUm(fii) {
+    const tickerNorm = fii.ticker.replace(/([A-Z]{4})(1[2-9]|[2-9][0-9])$/, '$111');
+    const ticker = tickerMap[tickerNorm] || tickerNorm;
+
+    try {
+      const res = await fetch(`${workerUrl}/dividendos/${ticker}`, {
+        signal: AbortSignal.timeout(10000)
+      });
+      if (!res.ok) return false;
+
+      const json = await res.json();
+      if (json.error) return false;
+
+      // Investidor10 retorna array de { competencia, valor, pagamento }
+      const divs = (json.data?.dividendos || json.data || [])
+        .filter(d => (d.valor || d.value || d.amount) > 0)
+        .sort((a, b) => new Date(b.pagamento || b.paymentDate || b.date || 0)
+                      - new Date(a.pagamento || a.paymentDate || a.date || 0));
+
+      if (divs.length > 0) {
+        const ultimo = divs[0];
+        const valor = parseFloat(ultimo.valor || ultimo.value || ultimo.amount || 0);
+        const data  = ultimo.pagamento || ultimo.paymentDate || ultimo.date || hoje;
+
+        if (valor > 0) {
+          fii.dividendo = parseFloat(valor.toFixed(4));
+          const mesDiv = data.slice(0, 7);
+          const jaExiste = mesDiv && dividendos.some(d =>
+            d.ticker === fii.ticker && d.data?.startsWith(mesDiv)
+          );
+          if (!jaExiste && fii.cotas > 0) {
+            dividendos.push({ ticker: fii.ticker, data, valor, cotas: fii.cotas,
+              total: parseFloat((valor * fii.cotas).toFixed(2)) });
+          }
+          return true;
+        }
+      }
+    } catch(e) {}
+
+    // Fallback: Yahoo Finance via proxies
+    const proxies = ['https://api.allorigins.win/raw?url=', 'https://corsproxy.io/?'];
+    for (const proxy of proxies) {
+      try {
+        const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}.SA?range=6mo&interval=1mo&events=div`;
+        const res = await fetch(proxy + encodeURIComponent(url), { signal: AbortSignal.timeout(8000) });
+        if (!res.ok) continue;
+        const data = await res.json();
+        const events = data?.chart?.result?.[0]?.events?.dividends;
+        if (events) {
+          const divs = Object.values(events).sort((a,b) => b.date - a.date);
+          if (divs[0]?.amount > 0) {
+            fii.dividendo = parseFloat(divs[0].amount.toFixed(4));
+            const dt = new Date(divs[0].date * 1000).toISOString().slice(0, 10);
+            const mesDiv = dt.slice(0, 7);
+            const jaExiste = mesDiv && dividendos.some(d => d.ticker === fii.ticker && d.data?.startsWith(mesDiv));
+            if (!jaExiste && fii.cotas > 0) {
+              dividendos.push({ ticker: fii.ticker, data: dt, valor: divs[0].amount,
+                cotas: fii.cotas, total: parseFloat((divs[0].amount * fii.cotas).toFixed(2)) });
+            }
+            return true;
+          }
+        }
+      } catch(e) {}
+    }
+    return false;
+  }
+
+  const resultados = await Promise.all(fiis.map(fii => buscarUm(fii).catch(() => false)));
+  resultados.forEach((ok, i) => {
+    if (ok) atualizados++;
+    else semDividendo.push(fiis[i].ticker);
+  });
+
+  if (btnDiv) { btnDiv.disabled = false; iconDiv?.classList.remove('spinning'); if(labelDiv) labelDiv.textContent = 'Buscar dividendos'; }
+
+  save();
+  renderDividendos();
+  renderDashboard();
+
+  if (atualizados > 0) {
+    notify(semDividendo.length
+      ? `✅ ${atualizados} atualizados. Sem dados: ${semDividendo.join(', ')}`
+      : `✅ Dividendos de ${atualizados} FIIs atualizados!`
+    );
+  } else {
+    // Worker pode estar com URL errada — reseta para pedir novamente
+    workerUrl = '';
+    localStorage.removeItem('workerUrl');
+    notify('⚠️ Não foi possível buscar. Verifique a URL do Worker.', true);
+  }
+}
+
+  save();
+  renderDividendos();
+  renderDashboard();
+
+// ========== MODO ATUAL ==========
+let currentMode = 'fiis';
+const MODES = {
+  fiis:        { icon:'🏢', label:'FIIs',        accent:'',                 pages:['dashboard','carteira','dividendos','chat'] },
+  acoes:       { icon:'📈', label:'Ações',        accent:'accent-acoes',    pages:['acoes-dashboard','acoes-carteira'] },
+  consolidado: { icon:'🌐', label:'Consolidado',  accent:'accent-consolidado', pages:['consolidado'] },
+};
+
+function toggleModeDropdown() {
+  document.getElementById('mode-dropdown').classList.toggle('open');
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('.mode-switcher'))
+    document.getElementById('mode-dropdown')?.classList.remove('open');
+});
+
+function setMode(mode) {
+  currentMode = mode;
+  const m = MODES[mode];
+  document.getElementById('mode-icon').textContent  = m.icon;
+  document.getElementById('mode-label').textContent = m.label;
+  document.getElementById('mode-dropdown').classList.remove('open');
+  document.querySelectorAll('.mode-option').forEach(el => el.classList.remove('active'));
+  document.getElementById('opt-' + mode)?.classList.add('active');
+  document.querySelector('.app').className = 'app ' + (m.accent || '');
+  // Show/hide FII nav tabs and chat strip
+  const navTabs  = document.querySelector('.nav-tabs');
+  const chatStrip = document.querySelector('.chat-strip');
+  if (navTabs)    navTabs.style.display    = mode === 'fiis' ? '' : 'none';
+  if (chatStrip)  chatStrip.style.display  = mode === 'fiis' ? '' : 'none';
+  // Navigate
+  showPage(m.pages[0]);
+  updateHeader();
+}
+
+// ========== AÇÕES STATE ==========
+let acoes = JSON.parse(localStorage.getItem('acoes') || '[]');
+let proventosAcoes = JSON.parse(localStorage.getItem('proventosAcoes') || '[]');
+
+function saveAcoes() {
+  localStorage.setItem('acoes', JSON.stringify(acoes));
+  localStorage.setItem('proventosAcoes', JSON.stringify(proventosAcoes));
+  updateHeader();
+  updateAcoesSelect();
+}
+
+const ACOES_DB = {
+  'PETR3':'Petróleo e Gás','PETR4':'Petróleo e Gás','PRIO3':'Petróleo e Gás',
+  'VALE3':'Mineração','CSNA3':'Mineração','GGBR4':'Mineração',
+  'ITUB4':'Bancos','BBDC4':'Bancos','BBAS3':'Bancos','SANB11':'Bancos',
+  'WEGE3':'Indústria','EGIE3':'Energia Elétrica','ENEV3':'Energia Elétrica','CPFE3':'Energia Elétrica',
+  'TAEE11':'Energia Elétrica','TRPL4':'Energia Elétrica','CMIG4':'Energia Elétrica',
+  'MGLU3':'Varejo','LREN3':'Varejo','RENT3':'Varejo',
+  'RDOR3':'Saúde','HAPV3':'Saúde','FLRY3':'Saúde',
+  'VIVT3':'Telecomunicações','TIMS3':'Telecomunicações',
+  'SAPR11':'Saneamento','SBSP3':'Saneamento',
+  'RAIZ4':'Agronegócio','AGRO3':'Agronegócio',
+};
+
+function addAcao() {
+  const ticker = document.getElementById('ac-ticker').value.toUpperCase().trim();
+  const setor  = document.getElementById('ac-setor').value;
+  const cotas  = parseFloat(document.getElementById('ac-cotas').value);
+  const pm     = parseFloat(document.getElementById('ac-pm').value);
+  const atual  = parseFloat(document.getElementById('ac-atual').value || pm);
+  const div    = parseFloat(document.getElementById('ac-div').value || 0);
+  if (!ticker || !cotas || !pm) { notify('Preencha ticker, quantidade e preço médio.', true); return; }
+  const autoSetor = ACOES_DB[ticker] || setor || 'Outros';
+  const idx = acoes.findIndex(a => a.ticker === ticker);
+  const entry = { ticker, setor: autoSetor, cotas, pm, atual, dividendo: div };
+  if (idx >= 0) acoes[idx] = entry; else acoes.push(entry);
+  ['ac-ticker','ac-cotas','ac-pm','ac-atual','ac-div'].forEach(id => { document.getElementById(id).value = ''; });
+  saveAcoes(); renderAcoesCarteira(); notify(ticker + ' adicionada à carteira!');
+}
+
+function removeAcao(ticker) {
+  if (!confirm('Remover ' + ticker + '?')) return;
+  acoes = acoes.filter(a => a.ticker !== ticker);
+  saveAcoes(); renderAcoesCarteira(); notify(ticker + ' removida.');
+}
+
+function addProventoAcao() {
+  const ticker = document.getElementById('ac-div-ticker').value;
+  const tipo   = document.getElementById('ac-div-tipo').value;
+  const data   = document.getElementById('ac-div-data').value;
+  const valor  = parseFloat(document.getElementById('ac-div-valor').value);
+  if (!ticker || !valor) { notify('Selecione o ticker e informe o valor.', true); return; }
+  const acao = acoes.find(a => a.ticker === ticker);
+  const total = valor * (acao?.cotas || 0);
+  proventosAcoes.push({ ticker, tipo, data: data || new Date().toISOString().slice(0,10), valor, cotas: acao?.cotas||0, total });
+  document.getElementById('ac-div-valor').value = '';
+  saveAcoes(); notify(tipo + ' de ' + ticker + ' registrado! R$ ' + fmt(total));
+}
+
+function updateAcoesSelect() {
+  const sel = document.getElementById('ac-div-ticker');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Selecione ação...</option>' + acoes.map(a => '<option>' + a.ticker + '</option>').join('');
+}
+
+function calcAcoesStats() {
+  let patrimonio = 0, renda = 0, investido = 0;
+  acoes.forEach(a => { patrimonio += a.atual*a.cotas; renda += (a.dividendo||0)*a.cotas; investido += a.pm*a.cotas; });
+  return { patrimonio, renda, resultado: patrimonio - investido };
+}
+
+function renderAcoesDashboard() {
+  const s = calcAcoesStats();
+  document.getElementById('ad-patrimonio').textContent = 'R$ ' + fmt(s.patrimonio);
+  document.getElementById('ad-proventos').textContent  = 'R$ ' + fmt(s.renda);
+  const resEl = document.getElementById('ad-resultado');
+  resEl.textContent = (s.resultado >= 0 ? '+' : '') + 'R$ ' + fmt(s.resultado);
+  resEl.style.color = s.resultado >= 0 ? 'var(--accent)' : 'var(--red)';
+
+  const tbody = document.getElementById('acoes-dash-tbody');
+  if (tbody) tbody.innerHTML = !acoes.length
+    ? '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:32px">Nenhuma ação cadastrada.</td></tr>'
+    : acoes.map(a => {
+        const res = (a.atual - a.pm) * a.cotas;
+        const pctRes = a.pm > 0 ? ((a.atual - a.pm) / a.pm * 100) : 0;
+        const dy = a.atual > 0 ? ((a.dividendo||0) / a.atual * 100) : 0;
+        const cls = res >= 0 ? 'badge-green' : 'badge-red';
+        const sinal = res >= 0 ? '+' : '';
+        return '<tr><td><strong style="color:var(--accent);font-family:DM Mono">' + a.ticker + '</strong></td>' +
+          '<td><span class="setor-pill" style="color:var(--accent)">' + a.setor + '</span></td>' +
+          '<td style="font-family:DM Mono">' + a.cotas + '</td>' +
+          '<td style="font-family:DM Mono">R$ ' + fmt(a.pm) + '</td>' +
+          '<td style="font-family:DM Mono">R$ ' + fmt(a.atual) + '</td>' +
+          '<td style="font-family:DM Mono;color:var(--gold)">R$ ' + fmt(a.dividendo||0) + '</td>' +
+          '<td><span class="badge badge-gold">' + pct(dy) + '</span></td>' +
+          '<td><span class="badge ' + cls + '">' + sinal + 'R$ ' + fmt(res) + '<br><span style="font-size:10px">' + sinal + pct(pctRes) + '</span></span></td></tr>';
+      }).join('');
+
+  const colors = ['#3fa6ff','#00e87a','#f5c842','#ff4d6d','#a78bfa','#fb923c','#34d399'];
+  const setores = {};
+  acoes.forEach(a => { setores[a.setor] = (setores[a.setor]||0) + a.atual*a.cotas; });
+  destroyChart('chart-acoes-setor');
+  const ctx = document.getElementById('chart-acoes-setor')?.getContext('2d');
+  if (ctx && Object.keys(setores).length) {
+    charts['chart-acoes-setor'] = new Chart(ctx, {
+      type:'doughnut', data:{ labels:Object.keys(setores), datasets:[{ data:Object.values(setores), backgroundColor:colors, borderColor:'#242424', borderWidth:2 }] },
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{ color:'#9a9a9a', font:{ family:'DM Mono', size:11 }, padding:8 } } } }
+    });
+  }
+
+  const months = ['Jan','Fev','Mar','Abr','Mai','Jun'];
+  const base = s.patrimonio || 1;
+  const vals = months.map((_,i) => Math.max(0, base * (0.88 + i * 0.025))); vals[5] = base;
+  destroyChart('chart-acoes-pat');
+  const ctx2 = document.getElementById('chart-acoes-pat')?.getContext('2d');
+  if (ctx2) charts['chart-acoes-pat'] = new Chart(ctx2, { type:'line', data:{ labels:months, datasets:[{ data:vals, borderColor:'#3fa6ff', backgroundColor:'rgba(63,166,255,0.08)', fill:true, tension:0.4, pointBackgroundColor:'#3fa6ff', pointRadius:4 }] }, options:{ ...chartOpts(), plugins:{ legend:{ display:false } } } });
+
+  const topEl = document.getElementById('acoes-rank-top');
+  const botEl = document.getElementById('acoes-rank-bot');
+  if (!topEl || !botEl) return;
+  const empty = '<div style="text-align:center;color:var(--text3);padding:24px;font-size:13px">Nenhuma ação cadastrada.</div>';
+  if (!acoes.length) { topEl.innerHTML = empty; botEl.innerHTML = empty; return; }
+  const ranked = [...acoes].map(a => ({ ...a, pct_val: a.pm > 0 ? ((a.atual-a.pm)/a.pm*100) : 0 })).sort((a,b) => b.pct_val - a.pct_val);
+  const maxAbs = Math.max(...ranked.map(r => Math.abs(r.pct_val)), 0.01);
+  const makeRow = (a, i) => {
+    const s2 = a.pct_val >= 0 ? '+' : '';
+    const color = a.pct_val >= 0 ? 'var(--accent)' : 'var(--red)';
+    const barW = Math.min(100, Math.abs(a.pct_val)/maxAbs*100);
+    return '<div class="rank-row"><div class="rank-pos">' + (i+1) + '</div><div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:6px;margin-bottom:3px"><span class="rank-ticker">' + a.ticker + '</span></div><div class="rank-bar-wrap"><div class="rank-bar" style="width:' + barW + '%;background:' + color + '"></div></div></div><div class="rank-pct" style="color:' + color + '">' + s2 + pct(a.pct_val) + '</div></div>';
+  };
+  topEl.innerHTML = ranked.slice(0,5).map((a,i) => makeRow(a,i)).join('');
+  botEl.innerHTML = ranked.slice(-5).reverse().map((a,i) => makeRow(a,i)).join('');
+}
+
+function renderAcoesCarteira() {
+  const tbody = document.getElementById('acoes-cart-tbody');
+  if (!tbody) return;
+  if (!acoes.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:32px">Nenhuma ação cadastrada ainda.</td></tr>'; return; }
+  tbody.innerHTML = acoes.map(a => {
+    const res = (a.atual - a.pm) * a.cotas;
+    const pctRes = a.pm > 0 ? ((a.atual - a.pm) / a.pm * 100) : 0;
+    const cls = res >= 0 ? 'badge-green' : 'badge-red';
+    const sinal = res >= 0 ? '+' : '';
+    return '<tr><td><strong style="color:var(--accent);font-family:DM Mono">' + a.ticker + '</strong></td>' +
+      '<td><span class="setor-pill" style="color:var(--accent)">' + a.setor + '</span></td>' +
+      '<td style="font-family:DM Mono">' + a.cotas + '</td>' +
+      '<td style="font-family:DM Mono">R$ ' + fmt(a.pm) + '</td>' +
+      '<td style="font-family:DM Mono">R$ ' + fmt(a.atual) + '</td>' +
+      '<td><span class="badge ' + cls + '">' + sinal + 'R$ ' + fmt(res) + '<br><span style="font-size:10px">' + sinal + pct(pctRes) + '</span></span></td>' +
+      '<td style="display:flex;gap:6px"><button class="btn" style="padding:4px 10px;font-size:12px" onclick="openEditAcao(\'' + a.ticker + '\')">✏️</button>' +
+      '<button class="btn" style="padding:4px 10px;font-size:12px;color:var(--red)" onclick="removeAcao(\'' + a.ticker + '\')">🗑️</button></td></tr>';
+  }).join('');
+}
+
+function openEditAcao(ticker) {
+  const a = acoes.find(a => a.ticker === ticker);
+  if (!a) return;
+  document.getElementById('edit-ticker-key').value = 'ACAO:' + ticker;
+  document.getElementById('edit-ticker-display').textContent = ticker;
+  document.getElementById('edit-setor-display').textContent = a.setor;
+  document.getElementById('edit-setor-display').className = 'setor-pill';
+  document.getElementById('edit-cotas').value = a.cotas;
+  document.getElementById('edit-pm').value = a.pm;
+  document.getElementById('edit-atual').value = a.atual;
+  document.getElementById('edit-div').value = a.dividendo || '';
+  updateEditSummary();
+  document.getElementById('modal-edit').classList.add('open');
+}
+
+// Patch saveEdit for ações
+const _origSaveEdit = window.saveEdit;
+window.saveEdit = function() {
+  const key = document.getElementById('edit-ticker-key').value;
+  if (key && key.startsWith('ACAO:')) {
+    const ticker = key.replace('ACAO:', '');
+    const a = acoes.find(a => a.ticker === ticker);
+    if (!a) return;
+    a.cotas     = parseFloat(document.getElementById('edit-cotas').value) || a.cotas;
+    a.pm        = parseFloat(document.getElementById('edit-pm').value)    || a.pm;
+    a.atual     = parseFloat(document.getElementById('edit-atual').value) || a.pm;
+    a.dividendo = parseFloat(document.getElementById('edit-div').value)   || 0;
+    a.setor     = document.getElementById('edit-setor').value             || a.setor;
+    closeModal(); saveAcoes(); renderAcoesCarteira(); renderAcoesDashboard();
+    notify('✅ ' + ticker + ' atualizada!');
+  } else { _origSaveEdit(); }
+};
+
+// ========== CONSOLIDADO ==========
+function renderConsolidado() {
+  const sf = calcStats();
+  const sa = calcAcoesStats();
+  const totalPat   = sf.patrimonio + sa.patrimonio;
+  const totalRenda = sf.renda + sa.renda;
+  const investFii  = fiis.reduce((s,f) => s + f.pm*f.cotas, 0);
+  const investAcao = acoes.reduce((s,a) => s + a.pm*a.cotas, 0);
+  const totalRes   = (sf.patrimonio - investFii) + (sa.patrimonio - investAcao);
+  document.getElementById('cons-patrimonio').textContent = 'R$ ' + fmt(totalPat);
+  document.getElementById('cons-renda').textContent = 'R$ ' + fmt(totalRenda);
+  const resEl = document.getElementById('cons-resultado');
+  resEl.textContent = (totalRes >= 0 ? '+' : '') + 'R$ ' + fmt(totalRes);
+  resEl.style.color = totalRes >= 0 ? 'var(--accent)' : 'var(--red)';
+
+  destroyChart('chart-cons-split');
+  const ctxSplit = document.getElementById('chart-cons-split')?.getContext('2d');
+  if (ctxSplit && totalPat > 0) {
+    charts['chart-cons-split'] = new Chart(ctxSplit, {
+      type:'doughnut', data:{ labels:['FIIs','Ações'], datasets:[{ data:[sf.patrimonio, sa.patrimonio], backgroundColor:['#00e87a','#3fa6ff'], borderColor:'#242424', borderWidth:3 }] },
+      options:{ responsive:true, maintainAspectRatio:false, cutout:'65%', plugins:{ legend:{ display:false } } }
+    });
+  }
+  const pctFii   = totalPat > 0 ? sf.patrimonio/totalPat*100 : 0;
+  const pctAcoes = totalPat > 0 ? sa.patrimonio/totalPat*100 : 0;
+  document.getElementById('cons-split-legend').innerHTML =
+    '<div style="display:flex;align-items:center;gap:10px"><div style="width:12px;height:12px;border-radius:3px;background:#00e87a"></div><div><div style="font-family:Syne,sans-serif;font-weight:700">FIIs</div><div style="font-family:DM Mono,monospace;font-size:12px;color:var(--text3)">R$ ' + fmt(sf.patrimonio) + '</div><div style="font-family:DM Mono,monospace;font-size:20px;color:#00e87a;font-weight:600">' + pct(pctFii) + '</div></div></div>' +
+    '<div style="display:flex;align-items:center;gap:10px"><div style="width:12px;height:12px;border-radius:3px;background:#3fa6ff"></div><div><div style="font-family:Syne,sans-serif;font-weight:700">Ações</div><div style="font-family:DM Mono,monospace;font-size:12px;color:var(--text3)">R$ ' + fmt(sa.patrimonio) + '</div><div style="font-family:DM Mono,monospace;font-size:20px;color:#3fa6ff;font-weight:600">' + pct(pctAcoes) + '</div></div></div>' +
+    '<div style="border-top:1px solid var(--border);padding-top:10px"><div style="font-size:10px;color:var(--text3);font-family:DM Mono,monospace;margin-bottom:4px">RENDA MENSAL TOTAL</div><div style="font-family:DM Mono,monospace;font-size:16px;color:var(--gold)">R$ ' + fmt(totalRenda) + '</div></div>';
+
+  const allSetores = {};
+  fiis.forEach(f => { allSetores[f.setor] = (allSetores[f.setor]||0) + f.atual*f.cotas; });
+  acoes.forEach(a => { allSetores[a.setor] = (allSetores[a.setor]||0) + a.atual*a.cotas; });
+  const colors2 = ['#00e87a','#3fa6ff','#f5c842','#ff4d6d','#a78bfa','#fb923c','#34d399','#60a5fa'];
+  destroyChart('chart-cons-setor');
+  const ctxSetor = document.getElementById('chart-cons-setor')?.getContext('2d');
+  if (ctxSetor && Object.keys(allSetores).length) {
+    charts['chart-cons-setor'] = new Chart(ctxSetor, { type:'bar', data:{ labels:Object.keys(allSetores), datasets:[{ data:Object.values(allSetores), backgroundColor:colors2, borderRadius:6 }] }, options:{ ...chartOpts(), plugins:{ legend:{ display:false } } } });
+  }
+
+  const allPos = [...fiis.map(f => ({ ticker:f.ticker, tipo:'FII', valor:f.atual*f.cotas, cor:'#00e87a' })), ...acoes.map(a => ({ ticker:a.ticker, tipo:'Ação', valor:a.atual*a.cotas, cor:'#3fa6ff' }))].sort((a,b) => b.valor - a.valor).slice(0,8);
+  document.getElementById('cons-top-posicoes').innerHTML = allPos.length
+    ? allPos.map((p,i) => '<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border)"><span style="font-family:DM Mono,monospace;font-size:11px;color:var(--text3);width:16px">' + (i+1) + '</span><span style="font-family:DM Mono,monospace;font-weight:600;color:' + p.cor + ';flex:1">' + p.ticker + '</span><span style="font-size:10px;padding:2px 6px;border-radius:4px;background:' + p.cor + '22;color:' + p.cor + '">' + p.tipo + '</span><span style="font-family:DM Mono,monospace;font-size:13px">R$ ' + fmt(p.valor) + '</span></div>').join('')
+    : '<div style="color:var(--text3);font-size:13px;padding:16px">Nenhum ativo cadastrado.</div>';
+
+  document.getElementById('cons-resumo').innerHTML =
+    ['Total de Ativos:' + (fiis.length+acoes.length), 'FIIs:' + fiis.length, 'Ações:' + acoes.length].map(s => {
+      const [label, val] = s.split(':');
+      return '<div><div style="font-size:10px;color:var(--text3);font-family:DM Mono,monospace;text-transform:uppercase;margin-bottom:2px">' + label + '</div><div style="font-family:DM Mono,monospace;font-size:16px">' + val + '</div></div>';
+    }).join('');
+}
+
+// ========== INIT ==========
+// Auto-classifica FIIs ja cadastrados que estejam como Hibrido e existam na base
+fiis.forEach(f => {
+  const real = getSetorByTicker(f.ticker);
+  if (real && f.setor === 'Hibrido') f.setor = real;
+});
+save();
+updateHeader();
+renderCarteira();
+updateDivSelect();
+renderDashboard();
+renderAcoesCarteira();
+updateAcoesSelect();
+
+// ========== PWA: GERAR ÍCONE DINAMICAMENTE ==========
+(function generateIcon() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512; canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+
+  // Fundo
+  ctx.fillStyle = '#1a1a1a';
+  ctx.beginPath();
+  ctx.roundRect(0, 0, 512, 512, 80);
+  ctx.fill();
+
+  // Borda verde
+  ctx.strokeStyle = '#00e87a';
+  ctx.lineWidth = 12;
+  ctx.beginPath();
+  ctx.roundRect(6, 6, 500, 500, 76);
+  ctx.stroke();
+
+  // Texto FII
+  ctx.fillStyle = '#00e87a';
+  ctx.font = 'bold 160px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('FII', 256, 200);
+
+  // Linha divisória
+  ctx.strokeStyle = '#383838';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(60, 290); ctx.lineTo(452, 290);
+  ctx.stroke();
+
+  // Barras de gráfico decorativas
+  const bars = [
+    { x: 80, h: 100, color: '#00e87a' },
+    { x: 160, h: 140, color: '#00e87a' },
+    { x: 240, h: 80, color: '#444444' },
+    { x: 320, h: 170, color: '#00e87a' },
+    { x: 400, h: 120, color: '#00b85f' },
+  ];
+  bars.forEach(b => {
+    ctx.fillStyle = b.color;
+    ctx.beginPath();
+    ctx.roundRect(b.x, 290 - b.h + 60, 55, b.h, 6);
+    ctx.fill();
+  });
+
+  const dataUrl = canvas.toDataURL('image/png');
+  document.getElementById('apple-icon').href = dataUrl;
+  document.getElementById('favicon').href = dataUrl;
+})();
+
+// ========== PWA: SERVICE WORKER (OFFLINE) ==========
+// Limpa Service Workers e caches antigos que possam interceptar navegação
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(regs => {
+    regs.forEach(reg => {
+      reg.unregister();
+      console.log('SW desregistrado:', reg.scope);
+    });
+  });
+}
+// Limpa todos os caches do browser
+if ('caches' in window) {
+  caches.keys().then(keys => {
+    keys.forEach(k => {
+      caches.delete(k);
+      console.log('Cache removido:', k);
+    });
+  });
+}
+
+// ========== PWA: BANNER DE INSTALAÇÃO ==========
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  showInstallBanner();
+});
+
+function showInstallBanner() {
+  if (document.getElementById('install-banner')) return;
+  const banner = document.createElement('div');
+  banner.id = 'install-banner';
+  banner.style.cssText = `
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: #242424; border: 1px solid #00e87a;
+    border-radius: 14px; padding: 14px 20px;
+    display: flex; align-items: center; gap: 14px;
+    box-shadow: 0 8px 32px rgba(0,232,122,0.15);
+    z-index: 9999; max-width: 340px; width: 90%;
+    animation: notifIn 0.3s ease;
+  `;
+  banner.innerHTML = `
+    <div style="font-size:28px">📲</div>
+    <div style="flex:1">
+      <div style="font-family:Syne,sans-serif;font-weight:700;font-size:14px;color:#e8f0ea">Instalar FII Tracker</div>
+      <div style="font-size:12px;color:#9a9a9a;margin-top:2px">Adicione à tela inicial do celular</div>
+    </div>
+    <button onclick="installPWA()" style="
+      background:#00e87a;color:#000;border:none;border-radius:8px;
+      padding:8px 14px;font-weight:700;font-size:13px;cursor:pointer;
+      font-family:'DM Sans',sans-serif;white-space:nowrap
+    ">Instalar</button>
+    <button onclick="document.getElementById('install-banner').remove()" style="
+      background:transparent;border:none;color:#555555;cursor:pointer;font-size:18px;padding:0 4px
+    ">✕</button>
+  `;
+  document.body.appendChild(banner);
+}
+
+async function installPWA() {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  const { outcome } = await deferredPrompt.userChoice;
+  deferredPrompt = null;
+  document.getElementById('install-banner')?.remove();
+  if (outcome === 'accepted') notify('✅ App instalado com sucesso!');
+}
+
+// iOS: mostrar instrução manual
+const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+if (isIOS && !isStandalone) {
+  setTimeout(() => {
+    if (document.getElementById('install-banner')) return;
+    const banner = document.createElement('div');
+    banner.id = 'install-banner';
+    banner.style.cssText = `
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      background: #242424; border: 1px solid #00e87a;
+      border-radius: 14px; padding: 16px 20px;
+      box-shadow: 0 8px 32px rgba(0,232,122,0.15);
+      z-index: 9999; max-width: 340px; width: 90%;
+      animation: notifIn 0.3s ease;
+    `;
+    banner.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="font-family:Syne,sans-serif;font-weight:700;font-size:14px;color:#e8f0ea">📲 Instalar no iPhone</div>
+        <button onclick="this.closest('#install-banner').remove()" style="background:transparent;border:none;color:#555555;cursor:pointer;font-size:18px">✕</button>
+      </div>
+      <div style="font-size:13px;color:#9a9a9a;line-height:1.6">
+        Toque em <strong style="color:#e8f0ea">Compartilhar</strong> (⬆️) na barra do Safari<br>
+        depois em <strong style="color:#00e87a">"Adicionar à Tela de Início"</strong>
+      </div>
+    `;
+    document.body.appendChild(banner);
+  }, 2000);
+}
+</script>
+
+<!-- MODAL TOKEN BRAPI -->
+<div class="modal-overlay" id="modal-token" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="token-modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div style="font-family:Syne,sans-serif;font-weight:700;font-size:18px">🔑 Token Brapi.dev</div>
+      <button onclick="document.getElementById('modal-token').classList.remove('open')"
+        style="background:transparent;border:none;color:var(--text3);cursor:pointer;font-size:20px">×</button>
+    </div>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:4px">Para atualizar cotações automaticamente, você precisa de um token gratuito da Brapi:</p>
+    <div class="token-steps">
+      <div class="token-step"><span>1️⃣</span><span>Acesse <strong>brapi.dev/dashboard</strong> e faça login</span></div>
+      <div class="token-step"><span>2️⃣</span><span>Vá em <strong>"Chaves de API"</strong></span></div>
+      <div class="token-step"><span>3️⃣</span><span>Se tiver token antigo, <strong>delete-o</strong> e crie um novo</span></div>
+      <div class="token-step"><span>4️⃣</span><span>Clique em <strong>"Criar nova chave"</strong> e copie o token</span></div>
+      <div class="token-step"><span>5️⃣</span><span>Cole o token abaixo e clique em Salvar</span></div>
+    </div>
+    <div class="form-group" style="margin-bottom:16px">
+      <label>Token Brapi</label>
+      <input type="password" id="brapi-token-input" placeholder="Cole seu token aqui..." style="font-family:DM Mono,monospace">
+      <div style="font-size:11px;color:var(--text3);margin-top:4px;font-family:DM Mono,monospace">🔒 Token salvo apenas no seu dispositivo</div>
+    </div>
+    <div id="token-test-result" style="margin-bottom:12px;font-size:12px;font-family:DM Mono,monospace;display:none"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn" onclick="document.getElementById('modal-token').classList.remove('open')">Cancelar</button>
+      <button class="btn" onclick="testarToken()" style="color:var(--blue);border-color:var(--blue)">🧪 Testar token</button>
+      <button class="btn btn-primary" onclick="salvarTokenBrapi()">✅ Salvar e atualizar</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
