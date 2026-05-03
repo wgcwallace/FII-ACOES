@@ -1608,21 +1608,44 @@
       <div style="overflow-y:auto;height:100%;padding:12px 16px;box-sizing:border-box">
         <div class="dashboard-grid" style="margin-bottom:12px">
 
-          <!-- 3 cards de resumo -->
+          <!-- Seletor de mês — span 3 -->
+          <div class="card span3" style="padding:10px 16px">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <div style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:1px">Período</div>
+              <button class="btn" style="padding:4px 10px;font-size:13px" onclick="navMes(-1)">◀</button>
+              <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:16px;min-width:100px;text-align:center" id="div-mes-label">—</div>
+              <button class="btn" style="padding:4px 10px;font-size:13px" onclick="navMes(+1)">▶</button>
+              <button class="btn" style="font-size:11px;padding:4px 10px;color:var(--accent)" onclick="irMesAtual()">Mês atual</button>
+              <select id="div-mes-select" style="font-size:12px;padding:4px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Mono',monospace;margin-left:auto" onchange="setMesSelecionado(this.value)">
+              </select>
+            </div>
+          </div>
+
+          <!-- 3 cards de resumo do mês -->
           <div class="card">
-            <div class="card-label">Renda Mensal Est.</div>
-            <div class="card-value green" id="div-renda-mensal" style="font-size:22px">R$ 0,00</div>
-            <div class="card-sub">último div × cotas</div>
+            <div class="card-label">Renda do Mês</div>
+            <div class="card-value green" id="div-renda-mes" style="font-size:22px">R$ 0,00</div>
+            <div class="card-sub" id="div-mes-sub">mês selecionado</div>
           </div>
           <div class="card">
             <div class="card-label">Total Acumulado</div>
             <div class="card-value gold" id="div-total" style="font-size:22px">R$ 0,00</div>
-            <div class="card-sub">histórico registrado</div>
+            <div class="card-sub">todos os meses</div>
           </div>
           <div class="card">
-            <div class="card-label">Proventos</div>
+            <div class="card-label">FIIs no Mês</div>
             <div class="card-value blue" id="div-count" style="font-size:22px">0</div>
-            <div class="card-sub">registros</div>
+            <div class="card-sub" id="div-count-sub">com dividendo</div>
+          </div>
+
+          <!-- Card renda estimada -->
+          <div class="card span3" style="display:flex;align-items:center;gap:16px;padding:12px 16px">
+            <div style="font-size:20px">💡</div>
+            <div>
+              <div style="font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:1px">Renda Mensal Estimada (próximos meses)</div>
+              <div style="font-family:'DM Mono',monospace;font-size:20px;font-weight:600;color:var(--accent)" id="div-renda-mensal">R$ 0,00</div>
+            </div>
+            <div style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;margin-left:auto">último div × cotas</div>
           </div>
 
           <!-- Tabela dividendos — span 3 igual ao Resumo da Carteira -->
@@ -1665,7 +1688,7 @@
 
           <!-- Histórico — span 3 -->
           <div class="card span3">
-            <div class="card-label" style="margin-bottom:12px">Histórico de Proventos</div>
+            <div class="card-label" style="margin-bottom:12px" id="div-hist-label">Histórico de Proventos</div>
             <div class="div-list" id="div-list">
               <div style="text-align:center;color:var(--text3);padding:24px">Nenhum dividendo registrado ainda.</div>
             </div>
@@ -1795,6 +1818,47 @@ Use os atalhos abaixo ou digite livremente!</div>
     <div class="page" id="page-acoes-carteira">
       <div class="form-page">
         <div class="form-section">
+          <div class="collapsible-header" onclick="toggleCollapsible('b3-acoes-steps')">
+            <div>
+              <div class="form-title">📥 Importar da B3</div>
+              <div class="form-subtitle">Importe sua posição de ações direto do extrato da B3</div>
+            </div>
+            <span class="chevron" id="chevron-b3-acoes-steps">▼</span>
+          </div>
+          <div class="collapsible-body" id="b3-acoes-steps" style="max-height:0;overflow:hidden">
+            <div style="padding-top:16px">
+              <div class="steps">
+                <div class="step"><div class="step-num">1</div><div class="step-text">Acesse <strong>investidor.b3.com.br</strong> e faça login com sua conta gov.br</div></div>
+                <div class="step"><div class="step-num">2</div><div class="step-text">Vá em <strong>Extratos e Informativos → Posição em Ativos</strong></div></div>
+                <div class="step"><div class="step-num">3</div><div class="step-text">Filtre por <strong>Ações</strong></div></div>
+                <div class="step"><div class="step-num">4</div><div class="step-text">Clique em <strong>Exportar → Excel ou CSV</strong> e salve o arquivo</div></div>
+                <div class="step"><div class="step-num">5</div><div class="step-text">Arraste ou selecione o arquivo abaixo 👇</div></div>
+              </div>
+              <div class="import-zone" id="import-zone-acoes"
+                ondragover="event.preventDefault();this.classList.add('drag')"
+                ondragleave="this.classList.remove('drag')"
+                ondrop="handleDropAcoes(event)">
+                <input type="file" accept=".xlsx,.xls,.csv" onchange="handleFileImportAcoes(this.files[0])">
+                <div class="import-icon">📂</div>
+                <div class="import-title">Arraste o arquivo aqui</div>
+                <div class="import-sub">ou clique para selecionar · XLS, XLSX ou CSV</div>
+              </div>
+              <div class="import-preview" id="import-preview-acoes">
+                <div class="preview-actions">
+                  <button class="btn btn-primary" onclick="confirmImportAcoes()">✅ Importar tudo</button>
+                  <button class="btn" onclick="cancelImportAcoes()">Cancelar</button>
+                  <span id="preview-count-acoes" style="font-size:12px;color:var(--text3);font-family:'DM Mono',monospace;align-self:center;margin-left:4px"></span>
+                </div>
+                <div class="preview-title">📋 Prévia — Ações encontradas</div>
+                <div class="preview-scroll" id="preview-list-acoes"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <hr class="divider">
+
+        <div class="form-section">
           <div class="form-title">Adicionar Ação</div>
           <div class="form-subtitle">Cadastre uma ação na sua carteira</div>
           <div class="form-grid">
@@ -1845,31 +1909,58 @@ Use os atalhos abaixo ou digite livremente!</div>
     <div class="page" id="page-acoes-dividendos">
       <div style="overflow-y:auto;height:100%;padding:12px 16px">
         <div class="dashboard-grid">
+
+          <!-- Seletor de mês -->
+          <div class="card span3" style="padding:10px 16px">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <div style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:1px">Período</div>
+              <button class="btn" style="padding:4px 10px;font-size:13px" onclick="navMesAcoes(-1)">◀</button>
+              <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:16px;min-width:100px;text-align:center" id="ad-mes-label">—</div>
+              <button class="btn" style="padding:4px 10px;font-size:13px" onclick="navMesAcoes(+1)">▶</button>
+              <button class="btn" style="font-size:11px;padding:4px 10px;color:var(--accent)" onclick="irMesAtualAcoes()">Mês atual</button>
+              <select id="ad-mes-select" style="font-size:12px;padding:4px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Mono',monospace;margin-left:auto" onchange="setMesAcoes(this.value)"></select>
+            </div>
+          </div>
+
+          <!-- Cards filtrados -->
           <div class="card">
-            <div class="card-label">Proventos Recebidos</div>
-            <div class="card-value gold" id="ad-prov-total">R$ 0,00</div>
-            <div class="card-sub">total acumulado</div>
+            <div class="card-label">Renda do Mês</div>
+            <div class="card-value gold" id="ad-prov-mes">R$ 0,00</div>
+            <div class="card-sub" id="ad-mes-sub">mês selecionado</div>
           </div>
           <div class="card">
-            <div class="card-label">Renda Mensal Est.</div>
-            <div class="card-value green" id="ad-prov-mensal">R$ 0,00</div>
-            <div class="card-sub">último provento × qtd</div>
+            <div class="card-label">Total Acumulado</div>
+            <div class="card-value green" id="ad-prov-total">R$ 0,00</div>
+            <div class="card-sub">todos os meses</div>
           </div>
           <div class="card">
-            <div class="card-label">Registros</div>
+            <div class="card-label">Registros no Mês</div>
             <div class="card-value blue" id="ad-prov-count">0</div>
-            <div class="card-sub">proventos registrados</div>
+            <div class="card-sub">proventos</div>
           </div>
+          <div class="card span3" style="display:flex;align-items:center;gap:16px;padding:12px 16px">
+            <div style="font-size:20px">💡</div>
+            <div>
+              <div style="font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:1px">Renda Mensal Estimada</div>
+              <div style="font-family:'DM Mono',monospace;font-size:20px;font-weight:600;color:var(--accent)" id="ad-prov-mensal">R$ 0,00</div>
+            </div>
+            <div style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;margin-left:auto">último provento × qtd</div>
+          </div>
+
+          <!-- Gráfico -->
           <div class="card span3">
             <div class="card-label" style="margin-bottom:12px">Proventos por Mês (R$)</div>
             <div class="chart-container"><canvas id="chart-acoes-div"></canvas></div>
           </div>
+
+          <!-- Histórico filtrado -->
           <div class="card span3">
-            <div class="card-label" style="margin-bottom:12px">Histórico de Proventos</div>
+            <div class="card-label" style="margin-bottom:12px" id="ad-hist-label">Histórico de Proventos</div>
             <div id="acoes-div-list" style="display:flex;flex-direction:column;gap:8px">
               <div style="text-align:center;color:var(--text3);padding:24px">Nenhum provento registrado.</div>
             </div>
           </div>
+
         </div>
       </div>
     </div>
@@ -2503,131 +2594,158 @@ function renderCarteira() {
   }).join('');
 }
 
-function renderDividendos() {
-  const total = dividendos.reduce((a, d) => a + d.total, 0);
+// ========== MÊS SELECIONADO ==========
+let _mesSel = new Date().toISOString().slice(0,7); // ex: "2025-03"
 
-  // Tabela de último dividendo por FII
+function getMeses() {
+  const meses = new Set();
+  dividendos.forEach(d => { if (d.data) meses.add(d.data.slice(0,7)); });
+  // Sempre inclui os últimos 6 meses
+  const hoje = new Date();
+  for (let i=0; i<6; i++) {
+    const d = new Date(hoje.getFullYear(), hoje.getMonth()-i, 1);
+    meses.add(d.toISOString().slice(0,7));
+  }
+  return [...meses].sort().reverse();
+}
+
+function fmtMesLabel(ym) {
+  const [y, m] = ym.split('-');
+  const nomes = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  return `${nomes[+m-1]} ${y}`;
+}
+
+function navMes(dir) {
+  const meses = getMeses().sort();
+  const idx = meses.indexOf(_mesSel);
+  const next = meses[idx + dir];
+  if (next) { _mesSel = next; renderDividendos(); }
+}
+
+function irMesAtual() {
+  _mesSel = new Date().toISOString().slice(0,7);
+  renderDividendos();
+}
+
+function setMesSelecionado(val) {
+  _mesSel = val;
+  renderDividendos();
+}
+
+function renderDividendos() {
+  const meses = getMeses();
+  // Atualiza select
+  const sel = document.getElementById('div-mes-select');
+  if (sel) {
+    sel.innerHTML = meses.map(m =>
+      `<option value="${m}" ${m === _mesSel ? 'selected' : ''}>${fmtMesLabel(m)}</option>`
+    ).join('');
+  }
+
+  // Label do mês
+  const labelEl = document.getElementById('div-mes-label');
+  if (labelEl) labelEl.textContent = fmtMesLabel(_mesSel);
+
+  // Filtra dividendos do mês selecionado
+  const divMes = dividendos.filter(d => d.data?.startsWith(_mesSel));
+  const totalMes = divMes.reduce((s,d) => s + (d.total||0), 0);
+  const totalGeral = dividendos.reduce((s,d) => s + (d.total||0), 0);
+
+  // Cards
+  const elRendaMes = document.getElementById('div-renda-mes');
+  const elTotal    = document.getElementById('div-total');
+  const elCount    = document.getElementById('div-count');
+  const elSub      = document.getElementById('div-mes-sub');
+  const elCountSub = document.getElementById('div-count-sub');
+  if (elRendaMes) elRendaMes.textContent = 'R$ ' + fmt(totalMes);
+  if (elTotal)    elTotal.textContent    = 'R$ ' + fmt(totalGeral);
+  if (elCount)    elCount.textContent    = divMes.length;
+  if (elSub)      elSub.textContent      = fmtMesLabel(_mesSel);
+  if (elCountSub) elCountSub.textContent = 'com dividendo';
+
+  // Renda estimada (próximos meses)
+  const rendaMensal = fiis.reduce((s, f) => s + (f.dividendo||0) * f.cotas, 0);
+  const elRenda = document.getElementById('div-renda-mensal');
+  if (elRenda) elRenda.textContent = 'R$ ' + fmt(rendaMensal);
+
+  // Tabela último dividendo por FII
   const tbody = document.getElementById('div-fii-tbody');
   if (tbody) {
     if (!fiis.length) {
       tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:24px">Nenhum FII na carteira.</td></tr>';
     } else {
-      const totalRenda = fiis.reduce((s, f) => s + (f.dividendo || 0) * f.cotas, 0);
-      tbody.innerHTML = fiis
-        .slice()
-        .sort((a, b) => (b.dividendo * b.cotas) - (a.dividendo * a.cotas))
+      const totalRenda = fiis.reduce((s, f) => s + (f.dividendo||0) * f.cotas, 0);
+      tbody.innerHTML = fiis.slice()
+        .sort((a, b) => (b.dividendo*b.cotas) - (a.dividendo*a.cotas))
         .map(f => {
-          const rendaFii = (f.dividendo || 0) * f.cotas;
-          const yieldM   = f.atual > 0 ? (f.dividendo / f.atual * 100) : 0;
-          const pctRenda = totalRenda > 0 ? (rendaFii / totalRenda * 100) : 0;
-          const setorKey = (f.setor || '').replace(/\s+/g, '-');
-          const ultReg = dividendos
-            .filter(d => d.ticker === f.ticker && d.data)
-            .sort((a,b) => b.data.localeCompare(a.data))[0];
-          const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+          const rendaFii = (f.dividendo||0) * f.cotas;
+          const yieldM   = f.atual > 0 ? (f.dividendo/f.atual*100) : 0;
+          const pctRenda = totalRenda > 0 ? (rendaFii/totalRenda*100) : 0;
+          const setorKey = (f.setor||'').replace(/\s+/g,'-');
+          const ultReg = dividendos.filter(d => d.ticker===f.ticker && d.data).sort((a,b)=>b.data.localeCompare(a.data))[0];
+          const mesesNomes = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
           let divRef = '';
           if (ultReg?.data) {
-            const [y, m] = ultReg.data.slice(0,7).split('-');
-            divRef = `${meses[parseInt(m)-1]}/${y.slice(2)}`;
+            const [y,m] = ultReg.data.slice(0,7).split('-');
+            divRef = `${mesesNomes[+m-1]}/${y.slice(2)}`;
           }
           return `<tr>
-            <td><strong style="color:var(--accent);font-family:DM Mono">${f.ticker}</strong></td>
+            <td><strong style="color:var(--accent);font-family:'DM Mono',monospace">${f.ticker}</strong></td>
             <td><span class="setor-pill setor-${setorKey}">${f.setor}</span></td>
-            <td style="font-family:DM Mono">${f.cotas}</td>
-            <td style="font-family:DM Mono;color:var(--gold)">
-              R$ ${fmt(f.dividendo || 0)}
-              ${divRef ? `<div style="font-size:10px;color:var(--text3)">${divRef}</div>` : ''}
-            </td>
-            <td style="font-family:DM Mono;color:var(--accent);font-weight:600">
-              R$ ${fmt(rendaFii)}
-              <div style="height:2px;background:var(--border);border-radius:2px;margin-top:3px">
-                <div style="height:2px;width:${Math.min(100,pctRenda).toFixed(1)}%;background:var(--accent);border-radius:2px"></div>
-              </div>
-            </td>
+            <td style="font-family:'DM Mono',monospace;text-align:center">${f.cotas}</td>
+            <td style="font-family:'DM Mono',monospace;color:var(--gold)">R$ ${fmt(f.dividendo||0)}${divRef?`<div style="font-size:10px;color:var(--text3)">${divRef}</div>`:''}</td>
+            <td style="font-family:'DM Mono',monospace;color:var(--accent);font-weight:600">R$ ${fmt(rendaFii)}<div style="height:2px;background:var(--border);border-radius:2px;margin-top:3px"><div style="height:2px;width:${Math.min(100,pctRenda).toFixed(1)}%;background:var(--accent);border-radius:2px"></div></div></td>
             <td><span class="badge badge-gold">${pct(yieldM)}</span></td>
           </tr>`;
         }).join('');
     }
   }
-  document.getElementById('div-total').textContent = 'R$ ' + fmt(total);
-  document.getElementById('div-count').textContent = dividendos.length;
 
-  // Renda mensal estimada com cotas atuais
-  const rendaMensal = fiis.reduce((s, f) => s + (f.dividendo || 0) * f.cotas, 0);
-  const elRenda = document.getElementById('div-renda-mensal');
-  if (elRenda) elRenda.textContent = 'R$ ' + fmt(rendaMensal);
-
+  // Histórico — filtra pelo mês selecionado
+  const histLabel = document.getElementById('div-hist-label');
+  if (histLabel) histLabel.textContent = `Proventos de ${fmtMesLabel(_mesSel)}`;
   const list = document.getElementById('div-list');
-  if (dividendos.length === 0) {
-    list.innerHTML = '<div style="text-align:center;color:var(--text3);padding:32px">Nenhum dividendo registrado.</div>';
-  } else {
-    list.innerHTML = [...dividendos]
-      .sort((a,b) => (b.data||'').localeCompare(a.data||''))
-      .map(d =>
-        `<div class="div-item">
+  if (list) {
+    if (!divMes.length) {
+      list.innerHTML = `<div style="text-align:center;color:var(--text3);padding:32px">Nenhum dividendo registrado em ${fmtMesLabel(_mesSel)}.</div>`;
+    } else {
+      list.innerHTML = [...divMes]
+        .sort((a,b) => (b.data||'').localeCompare(a.data||''))
+        .map(d => `<div class="div-item">
           <div>
             <div class="div-ticker">${d.ticker}</div>
-            <div class="div-date">${d.data || '—'} · ${d.cotas} cotas · R$ ${fmt(d.valor)}/cota</div>
+            <div class="div-date">${d.data||'—'} · ${d.cotas} cotas · R$ ${fmt(d.valor)}/cota</div>
           </div>
           <div class="div-value">R$ ${fmt(d.total)}</div>
-        </div>`
-      ).join('');
+        </div>`).join('');
+    }
   }
 
-  // Gráfico — agrupa por mês com totais reais (cotas × dividendo do mês)
+  // Gráfico — todos os meses
   const byMonth = {};
-  dividendos.forEach(d => {
-    if (!d.data && d.data !== 0) return;
-    const key = d.data ? d.data.slice(0, 7) : 'N/A';
-    if (!byMonth[key]) byMonth[key] = 0;
-    // Usa o total real (cotas × valor/cota registrado)
-    byMonth[key] += parseFloat(d.total) || 0;
-  });
-
-  // Garante pelo menos os últimos 6 meses no gráfico
   const hoje = new Date();
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
-    const key = d.toISOString().slice(0, 7);
-    if (!byMonth[key]) byMonth[key] = 0;
+  for (let i=5;i>=0;i--) {
+    const d = new Date(hoje.getFullYear(), hoje.getMonth()-i, 1);
+    byMonth[d.toISOString().slice(0,7)] = 0;
   }
-
-  const mLabels = Object.keys(byMonth).sort();
-  const mVals = mLabels.map(k => byMonth[k]);
-
-  // Formata labels para mês/ano curto
-  const labelsFormatted = mLabels.map(k => {
-    const [y, m] = k.split('-');
-    const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-    return `${meses[parseInt(m)-1]}/${y.slice(2)}`;
+  dividendos.forEach(d => {
+    if (!d.data) return;
+    const key = d.data.slice(0,7);
+    byMonth[key] = (byMonth[key]||0) + (parseFloat(d.total)||0);
   });
+  const mLabels = Object.keys(byMonth).sort();
+  const mesesNomes = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const labelsFormatted = mLabels.map(k => { const [y,m]=k.split('-'); return `${mesesNomes[+m-1]}/${y.slice(2)}`; });
+  const mVals = mLabels.map(k => byMonth[k]);
+  const bgColors = mLabels.map(k => k === _mesSel ? 'rgba(245,200,66,0.8)' : 'rgba(245,200,66,0.3)');
+  const bdColors = mLabels.map(k => k === _mesSel ? '#f5c842' : 'rgba(245,200,66,0.5)');
 
   destroyChart('chart-dividendos');
   const ctx = document.getElementById('chart-dividendos').getContext('2d');
   charts['chart-dividendos'] = new Chart(ctx, {
     type: 'bar',
-    data: {
-      labels: labelsFormatted,
-      datasets: [{
-        label: 'Renda (R$)',
-        data: mVals,
-        backgroundColor: mVals.map(v => v > 0 ? 'rgba(245,200,66,0.4)' : 'rgba(56,56,56,0.3)'),
-        borderColor: mVals.map(v => v > 0 ? '#f5c842' : '#383838'),
-        borderWidth: 1,
-        borderRadius: 6,
-      }]
-    },
-    options: {
-      ...chartOpts(),
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: {
-            label: ctx => `R$ ${fmt(ctx.parsed.y)}`
-          }
-        }
-      }
-    }
+    data: { labels: labelsFormatted, datasets: [{ label:'Renda (R$)', data: mVals, backgroundColor: bgColors, borderColor: bdColors, borderWidth: 1, borderRadius: 6 }] },
+    options: { ...chartOpts(), plugins: { legend:{ display:false }, tooltip:{ callbacks:{ label: ctx => `R$ ${fmt(ctx.parsed.y)}` } } } }
   });
 }
 
@@ -4054,6 +4172,105 @@ function setMode(mode) {
 let acoes = JSON.parse(localStorage.getItem('acoes') || '[]');
 let proventosAcoes = JSON.parse(localStorage.getItem('proventosAcoes') || '[]');
 
+let _acoesImportPreview = [];
+
+function handleDropAcoes(e) {
+  e.preventDefault();
+  document.getElementById('import-zone-acoes')?.classList.remove('drag');
+  const file = e.dataTransfer?.files[0];
+  if (file) handleFileImportAcoes(file);
+}
+
+function handleFileImportAcoes(file) {
+  if (!file) return;
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (ext === 'csv') {
+    const reader = new FileReader();
+    reader.onload = e => previewAcoesB3(parseAcoesB3CSV(e.target.result));
+    reader.readAsText(file, 'latin1');
+  } else {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, {header:1});
+      previewAcoesB3(parseAcoesB3Rows(rows));
+    };
+    reader.readAsArrayBuffer(file);
+  }
+}
+
+function parseAcoesB3CSV(text) {
+  const rows = text.split(/\r?\n/).map(r => r.split(/[;,\t]/));
+  return parseAcoesB3Rows(rows);
+}
+
+function parseAcoesB3Rows(rows) {
+  const found = [];
+  const parseNum = v => parseFloat(String(v||'').replace(/[R$\s]/g,'').replace(/\.(?=\d{3})/g,'').replace(',','.')) || 0;
+  for (const row of rows) {
+    if (!row || row.length < 2) continue;
+    let ticker = null;
+    for (const cell of row) {
+      const val = String(cell||'').trim().toUpperCase();
+      // Ações: 4 letras + 1-2 dígitos (PETR4, VALE3, BBDC4, ITUB3, etc)
+      if (/^[A-Z]{4}[0-9]{1,2}$/.test(val) && !val.endsWith('11')) {
+        ticker = val; break;
+      }
+      const m = val.match(/([A-Z]{4}[0-9]{1,2})(?!1)/);
+      if (m && !m[1].endsWith('11')) { ticker = m[1]; break; }
+    }
+    if (!ticker) continue;
+    const idxTicker = row.findIndex(c => String(c||'').toUpperCase().includes(ticker));
+    const cotas  = parseNum(row[idxTicker+2] || row[5]);
+    const valor  = parseNum(row[idxTicker+4] || row[7]);
+    const pm     = cotas > 0 && valor > 0 ? parseFloat((valor/cotas).toFixed(4)) : parseNum(row[idxTicker+3] || row[6]);
+    if (cotas <= 0) continue;
+    found.push({ ticker, cotas, pm: pm||0 });
+  }
+  // Agrupa
+  const map = {};
+  found.forEach(f => {
+    if (!map[f.ticker]) map[f.ticker] = { ticker:f.ticker, cotas:0, total:0 };
+    map[f.ticker].cotas += f.cotas;
+    map[f.ticker].total += f.cotas * f.pm;
+  });
+  return Object.values(map).map(f => ({ ticker:f.ticker, cotas:f.cotas, pm: f.cotas>0&&f.total>0 ? parseFloat((f.total/f.cotas).toFixed(2)) : 0 }));
+}
+
+function previewAcoesB3(lista) {
+  _acoesImportPreview = lista;
+  const preview = document.getElementById('import-preview-acoes');
+  const listEl  = document.getElementById('preview-list-acoes');
+  const countEl = document.getElementById('preview-count-acoes');
+  if (!preview || !listEl) return;
+  if (!lista.length) { notify('Nenhuma ação encontrada no arquivo.', true); return; }
+  countEl.textContent = lista.length + ' ação(ões) encontrada(s)';
+  listEl.innerHTML = lista.map(a =>
+    `<div class="preview-row"><strong style="color:var(--accent);font-family:'DM Mono',monospace">${a.ticker}</strong><span>${a.cotas} ações</span><span>PM: R$ ${fmt(a.pm)}</span></div>`
+  ).join('');
+  preview.style.display = 'block';
+}
+
+function confirmImportAcoes() {
+  _acoesImportPreview.forEach(a => {
+    const auto = ACOES_DB[a.ticker] || 'Outros';
+    const idx = acoes.findIndex(x => x.ticker === a.ticker);
+    const entry = { ticker:a.ticker, setor:auto, cotas:a.cotas, pm:a.pm||0.01, atual:a.pm||0.01, dividendo:0 };
+    if (idx>=0) acoes[idx]=entry; else acoes.push(entry);
+  });
+  document.getElementById('import-preview-acoes').style.display = 'none';
+  toggleCollapsible('b3-acoes-steps');
+  saveAcoes(); renderAcoesCarteira();
+  notify('✅ ' + _acoesImportPreview.length + ' ação(ões) importada(s)!');
+  _acoesImportPreview = [];
+}
+
+function cancelImportAcoes() {
+  document.getElementById('import-preview-acoes').style.display = 'none';
+  _acoesImportPreview = [];
+}
+
 function saveAcoes() {
   localStorage.setItem('acoes', JSON.stringify(acoes));
   localStorage.setItem('proventosAcoes', JSON.stringify(proventosAcoes));
@@ -4238,42 +4455,89 @@ window.saveEdit = function() {
 };
 
 // ========== CONSOLIDADO ==========
-function renderAcoesDividendos() {
-  const total = proventosAcoes.reduce((s,p) => s + p.total, 0);
-  const mensal = acoes.reduce((s,a) => s + (a.dividendo||0)*a.cotas, 0);
-  const elTotal  = document.getElementById('ad-prov-total');
-  const elMensal = document.getElementById('ad-prov-mensal');
-  const elCount  = document.getElementById('ad-prov-count');
-  if (elTotal)  elTotal.textContent  = 'R$ ' + fmt(total);
-  if (elMensal) elMensal.textContent = 'R$ ' + fmt(mensal);
-  if (elCount)  elCount.textContent  = proventosAcoes.length;
+let _mesSelAcoes = new Date().toISOString().slice(0,7);
 
-  // Gráfico mensal
+function getMesesAcoes() {
+  const meses = new Set();
+  proventosAcoes.forEach(p => { if (p.data) meses.add(p.data.slice(0,7)); });
+  const hoje = new Date();
+  for (let i=0;i<6;i++) {
+    const d = new Date(hoje.getFullYear(), hoje.getMonth()-i, 1);
+    meses.add(d.toISOString().slice(0,7));
+  }
+  return [...meses].sort().reverse();
+}
+
+function navMesAcoes(dir) {
+  const meses = getMesesAcoes().sort();
+  const idx = meses.indexOf(_mesSelAcoes);
+  const next = meses[idx + dir];
+  if (next) { _mesSelAcoes = next; renderAcoesDividendos(); }
+}
+
+function irMesAtualAcoes() {
+  _mesSelAcoes = new Date().toISOString().slice(0,7);
+  renderAcoesDividendos();
+}
+
+function setMesAcoes(val) {
+  _mesSelAcoes = val;
+  renderAcoesDividendos();
+}
+
+function renderAcoesDividendos() {
+  const meses = getMesesAcoes();
+  const sel = document.getElementById('ad-mes-select');
+  if (sel) sel.innerHTML = meses.map(m => `<option value="${m}" ${m===_mesSelAcoes?'selected':''}>${fmtMesLabel(m)}</option>`).join('');
+
+  const labelEl = document.getElementById('ad-mes-label');
+  if (labelEl) labelEl.textContent = fmtMesLabel(_mesSelAcoes);
+
+  const provMes = proventosAcoes.filter(p => p.data?.startsWith(_mesSelAcoes));
+  const totalMes   = provMes.reduce((s,p) => s + p.total, 0);
+  const totalGeral = proventosAcoes.reduce((s,p) => s + p.total, 0);
+  const mensal     = acoes.reduce((s,a) => s + (a.dividendo||0)*a.cotas, 0);
+
+  const elMes    = document.getElementById('ad-prov-mes');
+  const elTotal  = document.getElementById('ad-prov-total');
+  const elCount  = document.getElementById('ad-prov-count');
+  const elMensal = document.getElementById('ad-prov-mensal');
+  const elSub    = document.getElementById('ad-mes-sub');
+  const histLabel = document.getElementById('ad-hist-label');
+  if (elMes)    elMes.textContent    = 'R$ ' + fmt(totalMes);
+  if (elTotal)  elTotal.textContent  = 'R$ ' + fmt(totalGeral);
+  if (elCount)  elCount.textContent  = provMes.length;
+  if (elMensal) elMensal.textContent = 'R$ ' + fmt(mensal);
+  if (elSub)    elSub.textContent    = fmtMesLabel(_mesSelAcoes);
+  if (histLabel) histLabel.textContent = `Proventos de ${fmtMesLabel(_mesSelAcoes)}`;
+
+  // Gráfico
   const byMonth = {};
   const hoje = new Date();
   for (let i=5;i>=0;i--) {
     const d = new Date(hoje.getFullYear(), hoje.getMonth()-i, 1);
     byMonth[d.toISOString().slice(0,7)] = 0;
   }
-  proventosAcoes.forEach(p => {
-    if (p.data) byMonth[p.data.slice(0,7)] = (byMonth[p.data.slice(0,7)]||0) + p.total;
-  });
-  const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-  const labels = Object.keys(byMonth).sort().map(k => { const [y,m]=k.split('-'); return meses[+m-1]+'/'+y.slice(2); });
-  const vals = Object.keys(byMonth).sort().map(k => byMonth[k]);
+  proventosAcoes.forEach(p => { if (p.data) byMonth[p.data.slice(0,7)] = (byMonth[p.data.slice(0,7)]||0) + p.total; });
+  const mesesNomes = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const mLabels = Object.keys(byMonth).sort();
+  const labels  = mLabels.map(k => { const [y,m]=k.split('-'); return `${mesesNomes[+m-1]}/${y.slice(2)}`; });
+  const vals    = mLabels.map(k => byMonth[k]);
+  const bgColors = mLabels.map(k => k===_mesSelAcoes ? 'rgba(245,200,66,0.8)' : 'rgba(245,200,66,0.3)');
+  const bdColors = mLabels.map(k => k===_mesSelAcoes ? '#f5c842' : 'rgba(245,200,66,0.5)');
   destroyChart('chart-acoes-div');
   const ctx = document.getElementById('chart-acoes-div')?.getContext('2d');
   if (ctx) charts['chart-acoes-div'] = new Chart(ctx, {
-    type:'bar', data:{ labels, datasets:[{ data:vals, backgroundColor:'rgba(245,200,66,0.4)', borderColor:'#f5c842', borderWidth:1, borderRadius:6 }] },
-    options:{ ...chartOpts(), plugins:{ legend:{ display:false } } }
+    type:'bar', data:{ labels, datasets:[{ data:vals, backgroundColor:bgColors, borderColor:bdColors, borderWidth:1, borderRadius:6 }] },
+    options:{ ...chartOpts(), plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label: c => `R$ ${fmt(c.parsed.y)}` } } } }
   });
 
-  // Lista
+  // Histórico filtrado
   const list = document.getElementById('acoes-div-list');
   if (!list) return;
-  list.innerHTML = !proventosAcoes.length
-    ? '<div style="text-align:center;color:var(--text3);padding:24px">Nenhum provento registrado.</div>'
-    : [...proventosAcoes].sort((a,b) => (b.data||'').localeCompare(a.data||'')).map(p =>
+  list.innerHTML = !provMes.length
+    ? `<div style="text-align:center;color:var(--text3);padding:24px">Nenhum provento em ${fmtMesLabel(_mesSelAcoes)}.</div>`
+    : [...provMes].sort((a,b)=>(b.data||'').localeCompare(a.data||'')).map(p =>
         `<div class="div-item">
           <div>
             <div class="div-ticker">${p.ticker} <span style="font-size:10px;color:var(--text3);padding:2px 6px;border-radius:4px;background:var(--surface2)">${p.tipo||'Div'}</span></div>
